@@ -59,12 +59,14 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const apiKey = ""; // API key is left empty as per instructions
 
         // Speech Recognition setup 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const isSpeechRecognitionSupported = !!SpeechRecognition;
 
         const PROJECT_OPTIONS = ['Test Project', 'Daily Reflection', 'Meeting Notes', 'Idea Brainstorming', 'Create New Project'];
+        const LANGUAGE_OPTIONS = ['English', 'Spanish'];
 
         /**
          * Component for selecting the log type (Voice, Photo, Video)
@@ -93,38 +95,91 @@
           
           // Safely destructure Firebase functions and Lucide Icons (Added Camera and Video)
           const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } = firebase;
-          const { Mic, Save, Loader, XCircle, List, User, Tag, Camera, Video, AlertTriangle } = lucide; 
+          // Added Globe icon for translation selector
+          const { Mic, Save, Loader, XCircle, List, User, Tag, Camera, Video, AlertTriangle, Globe } = lucide; 
 
           const [db, setDb] = useState(null);
           const [userId, setUserId] = useState(null);
           const [isAuthReady, setIsAuthReady] = useState(false);
-          const [currentMode, setCurrentMode] = useState('voice'); // Feature selection: voice, photo, video
+          const [currentMode, setCurrentMode] = useState('voice'); 
 
           const [logEntries, setLogEntries] = useState([]);
           const [dictatedText, setDictatedText] = useState('');
           const [isRecording, setIsRecording] = useState(false);
+          const [isSaving, setIsSaving] = useState(false); 
           const [error, setError] = useState(null);
           const [statusMessage, setStatusMessage] = useState('Initializing application...');
           
           const [currentProject, setCurrentProject] = useState(PROJECT_OPTIONS[0]);
+          // This state controls whether to perform the translation and save the result
+          const [translationPreference, setTranslationPreference] = useState('Spanish'); 
 
           const recognitionRef = useRef(null);
           
           // Fallback check for missing dependencies
-          if (!initializeApp || !Mic || !Camera) { // Check for a few critical icons
+          if (!initializeApp || !Mic || !Camera) { 
              return (
                  <div className="min-h-screen p-4 sm:p-8 font-sans">
                      <div className="flex justify-center items-center p-8 bg-white rounded-xl shadow-lg mt-4">
                          {/* Using raw SVG as fallback */}
-                         <svg className="animate-spin h-6 w-6 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                         <svg className="animate-spin h-6 w-6 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                          <span className="text-gray-600 font-medium">Loading application resources. Please wait...</span>
                      </div>
                  </div>
              );
           }
+          
+          // --- Gemini API Translation Utility ---
+          const translateTextWithGemini = async (text, targetLang) => {
+              const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+              const userQuery = `Translate the following text into ${targetLang}. Only return the translated text. Text: "${text}"`;
+
+              const payload = {
+                  contents: [{ parts: [{ text: userQuery }] }],
+                  systemInstruction: {
+                      parts: [{ text: `You are an expert, professional translator. Your sole purpose is to provide the exact translation requested without any extra commentary or introductory phrases.` }]
+                  },
+              };
+
+              let lastError = null;
+              // Implement exponential backoff for retries
+              for (let i = 0; i < 3; i++) {
+                  try {
+                      const response = await fetch(apiUrl, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(payload)
+                      });
+
+                      if (!response.ok) {
+                          const errorBody = await response.json();
+                          throw new Error(`API returned status ${response.status}: ${errorBody.error?.message}`);
+                      }
+
+                      const result = await response.json();
+                      const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+                      if (translatedText) {
+                          return translatedText;
+                      } else {
+                          // Handle cases where API response is structurally fine but content is missing
+                          throw new Error("API returned an empty or malformed response for translation.");
+                      }
+                  } catch (e) {
+                      lastError = e;
+                      console.warn(`Translation attempt ${i + 1} failed. Retrying in ${Math.pow(2, i)}s...`, e);
+                      if (i < 2) { 
+                          await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                      }
+                  }
+              }
+
+              console.error("All translation attempts failed.", lastError);
+              throw new Error("Failed to translate text after multiple attempts.");
+          };
 
 
-          // --- 1. Firebase Initialization and Authentication ---
+          // --- 1. Firebase Initialization and Authentication (Unchanged) ---
           useEffect(() => {
             if (!firebaseConfig) {
               setError('Firebase configuration is missing.');
@@ -156,7 +211,6 @@
                   setUserId(user.uid);
                   setStatusMessage(`Authentication successful. User ID: ${user.uid}. Ready to log.`);
                 } else {
-                  // If the user is null, we explicitly set userId to null to prevent Firestore permission errors.
                   setUserId(null); 
                   setStatusMessage('Waiting for authentication to resolve...');
                 }
@@ -171,12 +225,10 @@
             }
           }, []);
 
-          // --- 2. Firestore Listener for Real-Time Log Entries ---
+          // --- 2. Firestore Listener for Real-Time Log Entries (Unchanged) ---
           useEffect(() => {
-            // Listener only runs when db is initialized, auth is checked, AND we have a valid userId (uid).
             if (!isAuthReady || !db || !userId) return;
 
-            // Define the private collection path
             const logsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'daily_logs');
             const q = query(logsCollectionRef);
 
@@ -184,9 +236,8 @@
               const entries = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
-                // Convert Firestore Timestamp to JS Date and handle undefined
                 createdAt: doc.data().createdAt ? doc.data().createdAt.toDate() : new Date(),
-              })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort newest first in JS
+              })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); 
 
               setLogEntries(entries);
               setStatusMessage(`Found ${entries.length} log entries.`);
@@ -198,35 +249,60 @@
             return () => unsubscribe();
           }, [isAuthReady, db, userId]);
 
-          // --- 3. Save Function ---
+          // --- 3. Save Function (Updated to save both English and Spanish) ---
           const saveDictatedText = async () => {
-            // Check for valid userId (not null)
-            if (!dictatedText.trim() || !db || !userId) {
+            if (isSaving) return; 
+
+            const dictatedContent = dictatedText.trim();
+
+            if (!dictatedContent || !db || !userId) {
                 setStatusMessage('Error: Dictation pad is empty or not authenticated.');
                 return;
             }
 
-            // Ensure recording is stopped before saving
             if (isRecording) stopDictation();
-
-            const logsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'daily_logs');
+            
+            setIsSaving(true);
+            setError(null);
+            
+            let spanishText = null;
 
             try {
-              await addDoc(logsCollectionRef, {
-                text: dictatedText.trim(),
-                project: currentProject, // Save the selected project
-                logType: 'voice', // Mark this as a voice log
-                createdAt: serverTimestamp(),
-              });
-              setDictatedText('');
-              setStatusMessage(`Voice entry saved successfully under the '${currentProject}' project!`);
+                // Only perform translation if Spanish is the preferred language
+                if (translationPreference === 'Spanish') {
+                    setStatusMessage(`Translating text to Spanish before saving...`);
+                    const translated = await translateTextWithGemini(dictatedContent, 'Spanish');
+                    spanishText = translated;
+                    setStatusMessage(`Translation complete. Saving entry in English and Spanish...`);
+                }
+
+                const logsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'daily_logs');
+
+                // Save both the original English text and the generated Spanish translation
+                const logData = {
+                    englishText: dictatedContent, // The primary log (English dictation)
+                    spanishText: spanishText,     // The generated translation
+                    project: currentProject,
+                    logType: 'voice', 
+                    translationPreference: translationPreference, // Save the preference for context
+                    createdAt: serverTimestamp(),
+                };
+
+                await addDoc(logsCollectionRef, logData);
+                
+                setDictatedText('');
+                setStatusMessage(`Voice entry saved successfully in English ${spanishText ? 'and Spanish' : ''} under the '${currentProject}' project!`);
+
             } catch (e) {
-              console.error('Error saving document:', e);
-              setError('Could not save the entry. Check console for details.');
+                console.error('Error during save or translation:', e);
+                setError(`Could not save the entry (Error: ${e.message}). The English text was not saved.`);
+                setStatusMessage('Error during save process.');
+            } finally {
+                setIsSaving(false);
             }
           };
           
-          // --- 4. Stop Dictation Function ---
+          // --- 4. Stop Dictation Function (Unchanged) ---
           const stopDictation = () => {
               if (recognitionRef.current) {
                   recognitionRef.current.stop();
@@ -235,33 +311,31 @@
               setStatusMessage('Dictation stopped. Review and save the transcript.');
           };
 
-          // --- 5. Start Dictation Function ---
+          // --- 5. Start Dictation Function (Unchanged - Always records in English) ---
           const startDictation = () => {
             if (!isSpeechRecognitionSupported) {
               setError('Your browser does not support the Web Speech API.');
               return;
             }
-            if (isRecording) return; // Prevent double-start
+            if (isRecording) return; 
 
-            // Stop any previous instance just in case
             if (recognitionRef.current) recognitionRef.current.stop();
 
             const recognition = new SpeechRecognition();
             recognition.continuous = true;
             recognition.interimResults = true;
-            recognition.lang = 'en-US';
+            recognition.lang = 'en-US'; // Always recognize in English 
 
             recognition.onstart = () => {
               setIsRecording(true);
               setError(null);
-              setStatusMessage('LISTENING: Speak clearly now! Click the red button to stop.');
+              setStatusMessage('LISTENING (English): Speak clearly now! Click the red button to stop.');
             };
 
             recognition.onresult = (event) => {
               let interimTranscript = '';
               let finalTranscript = '';
 
-              // Build the full transcript from results
               for (let i = event.resultIndex; i < event.results.length; ++i) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
@@ -271,7 +345,6 @@
                 }
               }
 
-              // Update the text area with the existing text + the new final/interim text
               const newText = (dictatedText + ' ' + finalTranscript + interimTranscript).trim();
               setDictatedText(newText);
             };
@@ -284,11 +357,11 @@
 
             recognition.onend = () => {
               setIsRecording(false);
-              setStatusMessage('Dictation session ended. Press the microphone button to start a new session.');
+              setStatusMessage('Dictation session ended. Review and save the transcript.');
             };
             
-            recognitionRef.current = recognition; // Store the current recognition instance
-            recognition.start(); // Start the dictation only when this function is called
+            recognitionRef.current = recognition; 
+            recognition.start(); 
           };
           
           // Toggles between start and stop dictation
@@ -314,42 +387,59 @@
           // Voice Dictation Card Component (for clean conditional rendering)
           const VoiceEntryCard = useMemo(() => () => (
             <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl mb-8 border border-gray-100">
-                <h2 className="text-xl font-semibold mb-4 text-gray-700">New Log Entry</h2>
+                <h2 className="text-xl font-semibold mb-4 text-gray-700">New Voice Log Entry (Dictate in English)</h2>
                 
-                {/* Project Selector */}
-                <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-500 mb-1 flex items-center">
-                        <Tag className="w-4 h-4 mr-1" /> Project/Tag
-                    </label>
-                     <select
-                        value={currentProject}
-                        onChange={(e) => setCurrentProject(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                     >
-                        {PROJECT_OPTIONS.map(proj => (
-                            <option key={proj} value={proj}>{proj}</option>
-                        ))}
-                     </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    {/* Project Selector */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1 flex items-center">
+                            <Tag className="w-4 h-4 mr-1" /> Project/Tag
+                        </label>
+                        <select
+                            value={currentProject}
+                            onChange={(e) => setCurrentProject(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                        >
+                            {PROJECT_OPTIONS.map(proj => (
+                                <option key={proj} value={proj}>{proj}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Language Selector - Now indicates which translation will be generated and saved */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1 flex items-center">
+                            <Globe className="w-4 h-4 mr-1" /> Generate Translation
+                        </label>
+                        <select
+                            value={translationPreference}
+                            onChange={(e) => setTranslationPreference(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
+                        >
+                            <option value="English">None (Save English Only)</option>
+                            <option value="Spanish">Spanish (Save Both Languages)</option>
+                        </select>
+                    </div>
                 </div>
 
                 {/* Dictation Area */}
                 <textarea
                     value={dictatedText}
                     onChange={(e) => setDictatedText(e.target.value)}
-                    placeholder={isSpeechRecognitionSupported ? "Start speaking after clicking the microphone..." : "Speech recognition is not supported in this browser. Type your log here."}
+                    placeholder={isSpeechRecognitionSupported ? "Start speaking (in English) after clicking the microphone..." : "Speech recognition is not supported in this browser. Type your log here."}
                     className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 resize-none text-gray-800"
-                    disabled={isRecording}
+                    disabled={isRecording || isSaving}
                 />
 
                 {/* Controls */}
                 <div className="mt-4 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0 sm:space-x-4">
                     
-                    {/* Dictation Button - ALWAYS RED, only the active glow changes */}
+                    {/* Dictation Button */}
                     {isSpeechRecognitionSupported && (
                          <button
                             onClick={handleDictationToggle}
-                            className={`flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-full text-white font-semibold transition duration-200 transform hover:scale-105 shadow-lg bg-red-500 hover:bg-red-600 ${isRecording ? 'dictation-button-active' : ''}`}
-                            disabled={!isAuthReady}
+                            className={`flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-full text-white font-semibold transition duration-200 transform hover:scale-105 shadow-lg bg-red-500 hover:bg-red-600 disabled:bg-red-300 ${isRecording ? 'dictation-button-active' : ''}`}
+                            disabled={!isAuthReady || isSaving}
                         >
                             {isRecording ? (
                                 <>
@@ -369,14 +459,23 @@
                     <button
                         onClick={saveDictatedText}
                         className="flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-full bg-green-500 text-white font-semibold transition duration-200 transform hover:scale-105 shadow-lg disabled:bg-gray-400 disabled:shadow-none"
-                        disabled={!dictatedText.trim() || !isAuthReady || isRecording}
+                        disabled={!dictatedText.trim() || !isAuthReady || isRecording || isSaving}
                     >
-                        <Save className="w-5 h-5 mr-3" />
-                        SAVE VOICE ENTRY
+                        {isSaving ? (
+                            <>
+                                <Loader className="w-5 h-5 mr-3 animate-spin" />
+                                {translationPreference === 'Spanish' ? 'TRANSLATING & SAVING...' : 'SAVING...'}
+                            </>
+                        ) : (
+                            <>
+                                <Save className="w-5 h-5 mr-3" />
+                                SAVE VOICE ENTRY
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
-          ), [isRecording, dictatedText, currentProject, isAuthReady, handleDictationToggle, saveDictatedText]);
+          ), [isRecording, dictatedText, currentProject, translationPreference, isAuthReady, isSaving, handleDictationToggle, saveDictatedText]);
 
 
           // --- UI Rendering ---
@@ -433,14 +532,33 @@
                             {logEntries.map((entry) => (
                                 <div key={entry.id} className="log-entry p-4 border border-gray-200 rounded-xl bg-gray-50 hover:shadow-md transition">
                                     <div className="flex justify-between items-start mb-2">
-                                        <span className={`inline-block text-xs font-medium px-3 py-1 rounded-full ${entry.logType === 'voice' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-700'}`}>
-                                            {entry.project} ({entry.logType || 'text'})
-                                        </span>
+                                        <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-3">
+                                            <span className={`inline-block text-xs font-medium px-3 py-1 rounded-full ${entry.logType === 'voice' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-700'}`}>
+                                                {entry.project} (English Original)
+                                            </span>
+                                            {/* Show translation preference tag if it was set to Spanish */}
+                                            {entry.translationPreference === 'Spanish' && (
+                                                <span className={`inline-block text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700`}>
+                                                    <Globe className="w-3 h-3 mr-1 inline-block"/> Spanish Translation Saved
+                                                </span>
+                                            )}
+                                        </div>
                                         <time className="text-xs text-gray-500">
                                             {entry.createdAt.toLocaleString()}
                                         </time>
                                     </div>
-                                    <p className="text-gray-800 whitespace-pre-wrap">{entry.text}</p>
+                                    
+                                    {/* PRD Requirement 1: Display original English text (now called englishText) */}
+                                    <p className="text-gray-800 whitespace-pre-wrap font-medium border-b border-gray-300 pb-2 mb-2">
+                                        {entry.englishText}
+                                    </p>
+
+                                    {/* PRD Requirement 2: Display Spanish translation below it, smaller and italicized */}
+                                    {entry.spanishText && (
+                                        <p className="text-sm text-gray-500 whitespace-pre-wrap italic">
+                                            **Spanish Translation:** {entry.spanishText}
+                                        </p>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -452,13 +570,10 @@
           );
         };
 
-        // --- Polling and Initialization Script (Ensures React only mounts once dependencies are ready) ---
+        // --- Polling and Initialization Script (Unchanged) ---
         const mountApp = () => {
-            // FIX: Use explicit local variables for short-circuit evaluation to prevent ReferenceErrors 
-            // when checking asynchronous dependencies in the global scope.
             const isFirebaseLoaded = !!window.firebase;
-            // Check for a few critical icons to ensure Lucide is fully loaded
-            const isLucideReady = !!(window.lucide && window.lucide.Mic && window.lucide.Camera);
+            const isLucideReady = !!(window.lucide && window.lucide.Mic && window.lucide.Camera && window.lucide.Globe);
             
             if (isFirebaseLoaded && isLucideReady) {
                  console.log("Dependencies loaded. Mounting React App.");
@@ -473,11 +588,10 @@
             return false; // Still waiting
         };
 
-        // Set up the polling mechanism
         const pollDependencies = () => {
             const maxAttempts = 50;
             let attempts = 0;
-            const intervalTime = 100; // Check every 100ms
+            const intervalTime = 100; 
             
             const interval = setInterval(() => {
                 if (mountApp() || attempts >= maxAttempts) {
@@ -491,7 +605,6 @@
             }, intervalTime);
         };
 
-        // Start polling when the window loads
         window.onload = pollDependencies;
 
     </script>
