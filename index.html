@@ -46,10 +46,6 @@
         const { useState, useEffect, useRef } = React;
         const { createRoot } = ReactDOM;
         
-        // Access Firebase and Lucide icons from the global window object
-        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } = window.firebase;
-        const { Mic, Save, Loader, XCircle, List, User, Tag } = window.lucide;
-        
         // --- Global Variables for Canvas Environment ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
@@ -66,6 +62,13 @@
          * Main application component for the Daily Dictation Log.
          */
         const App = () => {
+          // FIX: Access dependencies safely inside the component's execution scope
+          const firebase = window.firebase || {};
+          const lucide = window.lucide || {};
+          const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } = firebase;
+          const { Mic, Save, Loader, XCircle, List, User, Tag } = lucide;
+
+
           const [db, setDb] = useState(null);
           const [userId, setUserId] = useState(null);
           const [isAuthReady, setIsAuthReady] = useState(false);
@@ -81,6 +84,22 @@
 
           // Ref to hold the Speech Recognition instance
           const recognitionRef = useRef(null);
+          
+          // --- Early Dependency Check (Handles case where modules fail to load entirely) ---
+          if (!initializeApp || !Mic) {
+            return (
+                <div className="p-4 sm:p-8">
+                    <h1 className="text-3xl font-bold text-gray-900 mb-4">Voice Log Tester</h1>
+                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-sm mb-4 flex items-center">
+                        <XCircle className="h-5 w-5 mr-2" />
+                        <p className="font-medium">
+                            Error: Core libraries (Firebase/Icons) are unavailable. Please check your browser console for loading errors and refresh the page.
+                        </p>
+                    </div>
+                </div>
+            );
+          }
+
 
           // --- 1. Firebase Initialization and Authentication ---
           useEffect(() => {
