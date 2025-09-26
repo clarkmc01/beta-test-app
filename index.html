@@ -10,21 +10,23 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <!-- Load Lucide Icons for React (must use type="module") -->
     <script type="module">
       import * as lucide from 'https://unpkg.com/lucide-react@0.292.0/dist/lucide-react.js';
-      // Expose Lucide icons and necessary utilities globally for the Babel script
+      // Expose the entire Lucide module globally
       window.lucide = lucide;
       window.React = window.React || React;
       window.ReactDOM = window.ReactDOM || ReactDOM;
     </script>
+    
     <!-- Load Firebase SDKs (must use type="module") -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Expose Firebase functions to the global window object for the Babel script to use
+        // Expose Firebase functions to the global window object
         window.firebase = {
             initializeApp,
             getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
@@ -42,7 +44,6 @@
 
     <!-- Main React Application using Babel for compilation -->
     <script type="text/babel">
-        // Access React hooks and components from the global window object
         const { useState, useEffect, useRef } = React;
         const { createRoot } = ReactDOM;
         
@@ -51,23 +52,23 @@
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Speech Recognition setup
+        // Speech Recognition setup (must be accessed globally)
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const isSpeechRecognitionSupported = !!SpeechRecognition;
 
-        // List of available projects (including the user's requested option)
         const PROJECT_OPTIONS = ['Test Project', 'Daily Reflection', 'Meeting Notes', 'Idea Brainstorming', 'Create New Project'];
 
         /**
          * Main application component for the Daily Dictation Log.
          */
         const App = () => {
-          // FIX: Access dependencies safely inside the component's execution scope
+          // CRITICAL FIX: Access all external dependencies safely *inside* the component
+          // to ensure they are available after the asynchronous module loading is complete.
           const firebase = window.firebase || {};
           const lucide = window.lucide || {};
+          
           const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } = firebase;
-          const { Mic, Save, Loader, XCircle, List, User, Tag } = lucide;
-
+          const { Mic, Save, Loader, XCircle, List, User, Tag } = lucide; // Destructure icons safely
 
           const [db, setDb] = useState(null);
           const [userId, setUserId] = useState(null);
@@ -79,22 +80,18 @@
           const [error, setError] = useState(null);
           const [statusMessage, setStatusMessage] = useState('Initializing application...');
           
-          // State for the new Project feature
           const [currentProject, setCurrentProject] = useState(PROJECT_OPTIONS[0]);
 
-          // Ref to hold the Speech Recognition instance
           const recognitionRef = useRef(null);
           
           // --- Early Dependency Check (Handles case where modules fail to load entirely) ---
           if (!initializeApp || !Mic) {
             return (
-                <div className="p-4 sm:p-8">
+                <div className="min-h-screen p-4 sm:p-8 font-sans">
                     <h1 className="text-3xl font-bold text-gray-900 mb-4">Voice Log Tester</h1>
-                    <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-sm mb-4 flex items-center">
-                        <XCircle className="h-5 w-5 mr-2" />
-                        <p className="font-medium">
-                            Error: Core libraries (Firebase/Icons) are unavailable. Please check your browser console for loading errors and refresh the page.
-                        </p>
+                    <div className="flex justify-center items-center p-8 bg-white rounded-xl shadow-lg mt-4">
+                        {/* Use a simple text loader as a fallback if Loader icon is not available */}
+                        <span className="text-gray-600 font-medium">Loading dependencies... Please wait.</span>
                     </div>
                 </div>
             );
@@ -230,8 +227,6 @@
               }
 
               setDictatedText(prevText => {
-                // Keep the final text that was already dictated, and append the new final/interim text
-                // This logic needs to be simplified to only update based on the current recognition session
                 const updatedText = prevText.trim() + ' ' + finalTranscript + interimTranscript;
                 return updatedText.trim();
               });
