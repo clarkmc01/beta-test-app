@@ -28,6 +28,36 @@
                 box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
             }
         }
+
+        /* Custom style for the Save button (bright yellow #FFFF00) */
+        .bg-custom-yellow {
+            background-color: #FFFF00;
+        }
+        .hover\:bg-custom-yellow-hover:hover {
+            /* Slightly darker yellow for hover effect */
+            background-color: #CCCC00; 
+        }
+
+        /* Custom style for the Video button (Light Gray #D1D0CE) */
+        .bg-custom-video-green {
+            background-color: #D1D0CE; /* Changed from #00FF00 */
+            color: #1f2937; /* dark text for high contrast */
+        }
+        .hover\:bg-custom-video-green-hover:hover {
+            /* Slightly darker gray for hover effect: #BDBBB7 */
+            background-color: #BDBBB7; 
+            color: #1f2937;
+        }
+
+        /* Custom style for the Photo button (Dark Slate Blue #4863A0) */
+        .bg-custom-photo-blue {
+            background-color: #4863A0;
+            color: white; /* Ensure text is white */
+        }
+        .hover\:bg-custom-photo-blue-hover:hover {
+            /* Slightly darker blue for hover effect */
+            background-color: #395085; 
+        }
     </style>
     <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -76,34 +106,28 @@
 
 
         <div class="flex flex-wrap gap-2 mt-4">
-            <!-- Voice Dictation Button -->
+            <!-- Voice Dictation Button (Red) -->
             <button id="voice-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition disabled:opacity-50 text-sm" title="Start Voice Dictation">
                 <i data-lucide="mic" class="w-4 h-4 mr-1"></i> 
                 <span id="voice-label">Start Voice</span>
             </button>
-
-            <!-- Translate Button -->
-            <button id="translate-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-gray-500 text-white font-medium rounded-md hover:bg-gray-600 transition disabled:opacity-50 text-sm" title="Translate Text (English <> Spanish)">
-                <i data-lucide="languages" class="w-4 h-4 mr-1"></i> 
-                Translate
-            </button>
             
-            <!-- Photo Upload Button -->
-            <button id="photo-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition disabled:opacity-50 text-sm" title="Upload Photo">
+            <!-- Photo Upload Button (DARK SLATE BLUE #4863A0) -->
+            <button id="photo-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-custom-photo-blue text-white font-medium rounded-md hover:bg-custom-photo-blue-hover transition disabled:opacity-50 text-sm" title="Upload Photo">
                 <i data-lucide="camera" class="w-4 h-4 mr-1"></i> 
                 Photo
             </button>
             <input type="file" id="photo-input" accept="image/*" class="hidden">
 
-            <!-- Video Upload Button -->
-            <button id="video-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-teal-600 text-white font-medium rounded-md hover:bg-teal-700 transition disabled:opacity-50 text-sm" title="Upload Video">
+            <!-- Video Upload Button (LIGHT GRAY #D1D0CE) -->
+            <button id="video-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-custom-video-green text-gray-900 font-medium rounded-md hover:bg-custom-video-green-hover transition disabled:opacity-50 text-sm" title="Upload Video">
                 <i data-lucide="video" class="w-4 h-4 mr-1"></i> 
                 Video
             </button>
             <input type="file" id="video-input" accept="video/*" class="hidden">
 
-            <!-- Save Button -->
-            <button id="save-button" class="w-full flex-grow flex items-center justify-center p-3 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition disabled:opacity-50 mt-2 text-base" disabled>
+            <!-- Save Button (HIGHLIGHT YELLOW #FFFF00) -->
+            <button id="save-button" class="w-full flex-grow flex items-center justify-center p-3 bg-custom-yellow text-gray-900 font-semibold rounded-md hover:bg-custom-yellow-hover transition disabled:opacity-50 mt-2 text-base" disabled>
                 <i data-lucide="save" class="w-5 h-5 mr-2"></i> 
                 Save Log
             </button>
@@ -146,7 +170,6 @@
     const projectSelectEl = document.getElementById('project-select');
     const saveButtonEl = document.getElementById('save-button');
     const voiceButtonEl = document.getElementById('voice-button');
-    const translateButtonEl = document.getElementById('translate-button');
     const photoButtonEl = document.getElementById('photo-button');
     const photoInputEl = document.getElementById('photo-input');
     const videoButtonEl = document.getElementById('video-button');
@@ -185,8 +208,7 @@
         const hasMedia = currentMedia !== null;
         const hasProject = projectSelectEl.value.length > 0;
         saveButtonEl.disabled = !(hasText || hasMedia) || !hasProject;
-        // Enable translate button only if there is text
-        translateButtonEl.disabled = !hasText;
+        
         // Hide translation output if text is cleared
         if (!hasText) {
              translationOutputEl.classList.add('hidden');
@@ -196,6 +218,7 @@
 
     const getFirestorePath = (collectionName, docId) => {
         const base = `/artifacts/${appId}/users/${userId}/${collectionName}`;
+        // When docId is null/undefined, this returns a CollectionReference, otherwise a DocumentReference
         return docId ? doc(db, base, docId) : collection(db, base);
     };
     
@@ -349,7 +372,7 @@
             const targetLang = entry.translation.targetLanguage || 'Translated';
 
             translationDisplay = `
-                <p class="text-gray-500 text-xs italic mt-2 pt-2 border-t border-gray-100">
+                <p class="text-gray-500 text-sm italic mt-2 pt-2 border-t border-gray-100">
                     [${originalLang} to ${targetLang}] ${entry.translation.translatedText}
                 </p>
             `;
@@ -407,13 +430,14 @@
         let translationData = null;
         if (!translationOutputEl.classList.contains('hidden')) {
             const fullText = translationTextEl.textContent;
-            const langMatch = fullText.match(/\((.+?) to (.+?)\):/);
+            // The format is: (Lang1 to Lang2): Translation Text
+            const match = fullText.match(/\((.+?) to (.+?)\):\s*(.*)/s); 
 
-            if (langMatch) {
+            if (match) {
                  translationData = {
-                     detectedLanguage: langMatch[1].trim(),
-                     targetLanguage: langMatch[2].trim(),
-                     translatedText: fullText.substring(langMatch[0].length).trim()
+                     detectedLanguage: match[1].trim(),
+                     targetLanguage: match[2].trim(),
+                     translatedText: match[3].trim()
                  };
             }
         }
@@ -427,7 +451,7 @@
                 timestamp: serverTimestamp(),
             };
 
-            // setDoc with auto-ID generation by not passing a third argument (doc path)
+            // This is the correct way to save a document with an auto-generated ID.
             await setDoc(doc(getFirestorePath('daily_logs')), logData);
 
             // Clear state on success
@@ -453,7 +477,6 @@
         setStatus("Deleting log...");
         
         try {
-            // deleteDoc takes the document reference
             await deleteDoc(getFirestorePath('daily_logs', docId));
             setStatus("Log deleted.");
         } catch (e) {
@@ -502,20 +525,27 @@
 
     const translateAndDetect = async (text) => {
         if (!text.trim()) {
-            setError("Please enter some text to translate.");
             return null;
         }
 
-        translateButtonEl.disabled = true;
-        translateButtonEl.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Analyzing & Translating...';
+        // Use the voice button as a temporary loading indicator since the translate button is gone
+        voiceButtonEl.disabled = true;
+        voiceLabelEl.textContent = 'Translating...';
+        
         translationOutputEl.classList.remove('hidden');
         translationTextEl.textContent = 'Processing translation...';
-        lucide.createIcons();
+        
+        // Ensure voice button icon is set to loader
+        const voiceIcon = voiceButtonEl.querySelector('i');
+        if (voiceIcon) {
+             voiceIcon.setAttribute('data-lucide', 'loader-2');
+             voiceIcon.classList.add('animate-spin');
+        }
 
         try {
-            const systemPrompt = "You are a professional language expert. Given a block of text, first identify the language (must be English or Spanish). Then, translate the text into the opposite language. Respond ONLY with a JSON object. If the text is not clearly English or Spanish, identify the language as 'Other'.";
-            const userQuery = `Analyze and translate the following text: "${text}"`;
-
+            const systemPrompt = "Analyze the user's input text to detect its language. Then, if the detected language is English, translate it into Spanish. If the detected language is NOT English, translate it into English. Respond only with a JSON object containing the original text, detected language (using its full name), the target language (full name), and the translated text.";
+            const userQuery = `Analyze and translate this text: "${text}"`;
+            
             const payload = {
                 contents: [{ parts: [{ text: userQuery }] }],
                 systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -524,219 +554,191 @@
                     responseSchema: {
                         type: "OBJECT",
                         properties: {
-                            "detectedLanguage": { "type": "STRING", "description": "The detected language, 'English', 'Spanish', or 'Other'." },
-                            "translation": { "type": "STRING", "description": "The translation into the opposite language, or an empty string if language is 'Other'." }
+                            "originalText": { "type": "STRING" },
+                            "detectedLanguage": { "type": "STRING" },
+                            "targetLanguage": { "type": "STRING" },
+                            "translatedText": { "type": "STRING" }
                         },
-                        "propertyOrdering": ["detectedLanguage", "translation"]
+                        "propertyOrdering": ["originalText", "detectedLanguage", "targetLanguage", "translatedText"]
                     }
                 }
-            }
-
-            let response = null;
+            };
+            
+            let result;
             let attempts = 0;
             const maxAttempts = 3;
             let delay = 1000;
 
-            // Exponential backoff for API call
             while (attempts < maxAttempts) {
                 try {
-                    response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+                    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
-                    if (response.status === 429) {
-                        attempts++;
-                        if (attempts < maxAttempts) {
-                            await new Promise(resolve => setTimeout(resolve, delay));
-                            delay *= 2;
-                            continue; // Retry
-                        }
-                    }
-
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    break; // Success
+
+                    result = await response.json();
+                    break; 
+
                 } catch (e) {
                     attempts++;
                     if (attempts >= maxAttempts) throw e;
                     await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2;
+                    delay *= 2; 
                 }
             }
+            
+            const candidate = result?.candidates?.[0];
+            const jsonText = candidate?.content?.parts?.[0]?.text;
 
-            if (!response) {
-                throw new Error("API call failed after multiple retries.");
+            if (jsonText) {
+                const parsedJson = JSON.parse(jsonText);
+                
+                const translationResult = `(${parsedJson.detectedLanguage} to ${parsedJson.targetLanguage}): ${parsedJson.translatedText}`;
+                translationTextEl.textContent = translationResult;
+                setStatus(`Translation complete: ${parsedJson.detectedLanguage} detected.`);
+            } else {
+                translationTextEl.textContent = 'Translation service returned no content.';
+                setError('Failed to get translation content from the API.');
             }
-            
-            const result = await response.json();
-            const jsonString = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            
-            if (!jsonString) {
-                throw new Error("LLM did not return a valid JSON structure.");
-            }
-            
-            const translationResult = JSON.parse(jsonString);
-
-            if (translationResult.detectedLanguage === 'Other' || !translationResult.translation || translationResult.translation.trim() === '') {
-                translationTextEl.textContent = `Language detected: ${translationResult.detectedLanguage}. Translation skipped.`;
-                setStatus("Language was not English or Spanish. Translation not saved.");
-                return null;
-            }
-
-            const targetLang = translationResult.detectedLanguage === 'English' ? 'Spanish' : 'English';
-            translationOutputEl.querySelector('h3').innerHTML = `<i data-lucide="languages" class="w-4 h-4 mr-1"></i> Translation Result:`;
-            translationTextEl.textContent = `(${translationResult.detectedLanguage} to ${targetLang}): ${translationResult.translation}`;
-            setStatus(`Translated from ${translationResult.detectedLanguage} to ${targetLang}. Translation available for saving.`);
-            lucide.createIcons();
-            
-            return { translation: translationResult.translation };
 
         } catch (e) {
-            console.error("Translation API error:", e);
-            setError("Translation failed. The API may be unavailable or rate-limited.");
-            translationTextEl.textContent = 'Error during translation. Try again later.';
-            return null;
+            console.error("Translation API Error:", e);
+            translationTextEl.textContent = 'Could not translate: Service failed or returned invalid data.';
+            setError('Translation failed. Check the console for API errors.');
         } finally {
-            translateButtonEl.disabled = false;
-            translateButtonEl.innerHTML = '<i data-lucide="languages" class="w-4 h-4 mr-1"></i> Translate';
-            lucide.createIcons();
+            voiceButtonEl.disabled = false;
+            voiceLabelEl.textContent = 'Start Voice';
+            // Restore voice button icon
+            const voiceIcon = voiceButtonEl.querySelector('i');
+            if (voiceIcon) {
+                voiceIcon.setAttribute('data-lucide', 'mic');
+                voiceIcon.classList.remove('animate-spin');
+            }
         }
     };
-    
-    // --- Voice Dictation Handler (Uses Web Speech API) ---
-    const setRecordingState = (recording) => {
-        isRecording = recording;
-        voiceLabelEl.textContent = recording ? 'Stop Recording' : 'Start Voice';
-        
-        // Handle UI changes 
-        if (recording) {
-            // Use bg-red-800 when recording, and add the pulsing animation
-            voiceButtonEl.classList.add('voice-recording', 'bg-red-800');
-            voiceButtonEl.classList.remove('bg-red-600', 'hover:bg-red-700');
-        } else {
-            // Revert to default non-recording state
-            voiceButtonEl.classList.remove('voice-recording', 'bg-red-800');
-            voiceButtonEl.classList.add('bg-red-600', 'hover:bg-red-700');
-        }
-        
-        // Update the Lucide icon
-        const iconElement = voiceButtonEl.querySelector('i');
-        if (iconElement) {
-            iconElement.setAttribute('data-lucide', recording ? 'square' : 'mic'); 
-            lucide.createIcons(); // Re-render icon
-        }
-    };
-    
-    const setupVoiceDictation = () => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        if (!SpeechRecognition) {
+
+    // --- Voice Recognition Logic (Web Speech API) ---
+    const initializeSpeechRecognition = () => {
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+            setError("Your browser does not support Web Speech API for voice dictation.");
             voiceButtonEl.disabled = true;
-            voiceButtonEl.innerHTML = '<i data-lucide="volume-x" class="w-4 h-4 mr-1"></i> Voice Not Supported';
-            setError("Your browser does not support Web Speech API (Voice Dictation).");
-            lucide.createIcons();
             return;
         }
 
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         recognition = new SpeechRecognition();
+        
         recognition.interimResults = true;
-        recognition.lang = 'en-US'; // Default language set to English
-        recognition.continuous = true; 
+        recognition.continuous = true;
+        recognition.lang = 'en-US'; // Default language
 
         recognition.onstart = () => {
-            setRecordingState(true);
-            setStatus("Listening... start speaking now. Speak in English or Spanish.");
+            isRecording = true;
+            voiceLabelEl.textContent = 'Recording... Say "STOP" to save.';
+            voiceButtonEl.classList.add('voice-recording');
+            setStatus("Listening for your voice input...");
         };
 
         recognition.onresult = (event) => {
-            let finalTranscript = '';
-
-            for (let i = event.resultIndex; i < event.results.length; i++) {
+            let interim_transcript = '';
+            let final_transcript = '';
+            
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                    finalTranscript += transcript + ' ';
-                } 
+                    final_transcript += transcript;
+                } else {
+                    interim_transcript += transcript;
+                }
             }
-
-            if (finalTranscript) {
-                // Append the final result to the existing text area content
-                logTextEl.value += finalTranscript;
-                // Scroll to the bottom to show the new text
-                logTextEl.scrollTop = logTextEl.scrollHeight;
-                checkSaveEnablement();
-            }
-        };
-
-        recognition.onend = async () => {
-            setRecordingState(false);
             
-            const currentText = logTextEl.value.trim();
-            // Automatically attempt translation if text was captured
-            if (currentText.length > 0) {
-                setStatus("Voice dictation stopped. Detecting language and translating...");
-                // The translateAndDetect function updates the UI with the translation
-                await translateAndDetect(currentText); 
-            } else {
-                setStatus("Voice dictation stopped.");
+            let currentText = logTextEl.value.replace(/ \(.*?\)/g, '').trim();
+
+            if (final_transcript.toLowerCase().includes('stop')) {
+                // Stop command detected
+                logTextEl.value = currentText + final_transcript.replace(/stop/i, '').trim();
+                recognition.stop();
+                return;
             }
+
+            // Append new speech to the text area
+            const speechIndicator = interim_transcript ? ` (${interim_transcript})` : '';
+            logTextEl.value = currentText + final_transcript + speechIndicator;
+            checkSaveEnablement();
         };
 
         recognition.onerror = (event) => {
-            setRecordingState(false); 
-            setError(`Voice Error: ${event.error}. If permissions are on, try reloading the page.`);
+            console.error('Speech Recognition Error:', event.error);
+            setError(`Speech Recognition Error: ${event.error}`);
+            isRecording = false;
+            voiceLabelEl.textContent = 'Start Voice';
+            voiceButtonEl.classList.remove('voice-recording');
         };
-        
-        // This is the main button click handler
-        voiceButtonEl.addEventListener('click', () => {
-            if (isRecording) {
-                recognition.stop();
-            } else {
-                setRecordingState(true); 
-                
-                try {
-                    recognition.start();
-                } catch(e) {
-                    if (e.name === 'InvalidStateError') {
-                        setStatus("Already attempting to listen. Please wait a moment or click 'Stop Recording'.");
-                    } else {
-                        console.error("Recognition start failed:", e);
-                        setError("Could not start microphone. Check browser console for details.");
-                    }
-                    setRecordingState(false);
-                }
-            }
-        });
-    };
-    
-    // --- Event Listeners and Initial Load ---
-    window.onload = () => {
-        // Initialize Firebase on load
-        initializeFirebase(); 
 
-        // Initial check for save button status
+        recognition.onend = async () => {
+            if (isRecording) {
+                // This means the user did not say "stop" and the browser stopped listening.
+                setStatus("Voice dictation paused by the browser (max duration reached). Click to resume or save.");
+                isRecording = false;
+                voiceLabelEl.textContent = 'Start Voice';
+                voiceButtonEl.classList.remove('voice-recording');
+            }
+            // If the text area has content, trigger the translation service
+            const textToTranslate = logTextEl.value.replace(/ \(.*?\)/g, '').trim();
+            if (textToTranslate) {
+                await translateAndDetect(textToTranslate);
+            }
+            checkSaveEnablement();
+        };
+    };
+
+    const toggleSpeechRecognition = () => {
+        if (!recognition) return;
+
+        if (isRecording) {
+            recognition.stop();
+            isRecording = false;
+        } else {
+            try {
+                // Clear any potential interim text before starting
+                logTextEl.value = logTextEl.value.replace(/ \(.*?\)/g, '').trim();
+                recognition.start();
+            } catch (e) {
+                console.error("Recognition start failed:", e);
+                setError("Could not start voice recognition. Please try again.");
+            }
+        }
+    };
+
+    // --- Event Listeners ---
+    
+    // Auth and Initialization
+    window.onload = initializeFirebase;
+    document.addEventListener('DOMContentLoaded', () => {
+        lucide.createIcons(); // Initialize Lucide icons
+        initializeSpeechRecognition();
+
         logTextEl.addEventListener('input', checkSaveEnablement);
         projectSelectEl.addEventListener('change', checkSaveEnablement);
         saveButtonEl.addEventListener('click', handleSaveLog);
         
-        // Setup Media Inputs
+        // Voice Button
+        voiceButtonEl.addEventListener('click', toggleSpeechRecognition);
+
+        // Photo Input
         photoButtonEl.addEventListener('click', () => photoInputEl.click());
         photoInputEl.addEventListener('change', (e) => handleMediaChange(e, 'image'));
 
+        // Video Input
         videoButtonEl.addEventListener('click', () => videoInputEl.click());
         videoInputEl.addEventListener('change', (e) => handleMediaChange(e, 'video'));
-        
-        // Setup Translation (Button click now also triggers the bidirectional detection/translation)
-        translateButtonEl.addEventListener('click', () => translateAndDetect(logTextEl.value));
-
-        // Setup Voice Dictation
-        setupVoiceDictation();
-
-        // Initialize Lucide icons
-        lucide.createIcons();
-    };
+    });
 
 </script>
 </body>
