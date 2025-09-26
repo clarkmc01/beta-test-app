@@ -4,61 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Log App</title>
+    
+    <!-- FAVICON PLACEHOLDER -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Custom Dark Theme Styles for better contrast and mood */
-        :root {
-            --primary-color: #4f46e5; /* Indigo 600 */
-            --background-color: #0f172a; /* Slate 900 */
-            --card-background: #1e293b; /* Slate 800 */
-            --text-color: #f1f5f9; /* Slate 100 */
-            --secondary-text: #94a3b8; /* Slate 400 */
-        }
-
+        /* General professional font */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: var(--background-color);
-            color: var(--text-color);
         }
 
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-
-        .log-card {
-            background-color: var(--card-background);
-            border: 1px solid #334155; /* Slate 700 */
-        }
-        
-        /* Custom button styling for interactivity and shadow */
-        .action-button {
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-
-        .action-button:hover:not(:disabled) {
-            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3), 0 4px 6px -4px rgba(79, 70, 229, 0.2);
-            transform: translateY(-1px);
-        }
-
-        .action-button:active:not(:disabled) {
-            transform: translateY(1px);
-            box-shadow: none;
-        }
-
-        /* Voice button specific pulsing animation */
+        /* Custom styling for the pulsing effect when recording */
         .voice-recording {
             animation: pulse-red 1s infinite;
         }
 
         @keyframes pulse-red {
             0%, 100% {
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+                box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); /* Standard Red Pulse */
             }
             50% {
-                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+                box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
             }
         }
     </style>
@@ -67,64 +34,87 @@
     <!-- Lucide Icons for Buttons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen bg-gray-50 p-4 sm:p-8">
 
-<div class="container">
-    <header class="text-center mb-10">
-        <h1 class="text-5xl font-extrabold text-indigo-400">Daily Log</h1>
-        <p class="text-xl mt-2 text-secondary-text">Capture your day using text, voice, photos, or video.</p>
-        <p id="user-status" class="text-xs mt-1 text-gray-500"></p>
+<div class="max-w-xl mx-auto">
+    <header class="text-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">Daily Log</h1>
+        <p class="text-gray-500">Capture your day using text, voice, photos, or video.</p>
+        <p id="user-status" class="text-xs mt-1 text-gray-400"></p>
     </header>
 
     <!-- Input Section -->
-    <section class="log-card p-6 rounded-xl shadow-2xl mb-8">
-        <h2 class="text-2xl font-semibold mb-4 text-indigo-300">New Entry</h2>
+    <section class="bg-white p-6 rounded-lg shadow-md mb-8 border border-gray-200">
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">New Entry</h2>
         
-        <div id="error-message" class="hidden p-3 bg-red-900 text-red-300 rounded-lg mb-4"></div>
-        <div id="status-message" class="hidden p-3 bg-indigo-900 text-indigo-300 rounded-lg mb-4"></div>
+        <div id="error-message" class="hidden p-3 bg-red-50 text-red-600 border border-red-200 rounded-md mb-4 font-medium text-sm"></div>
+        <div id="status-message" class="hidden p-3 bg-blue-50 text-blue-600 border border-blue-200 rounded-md mb-4 font-medium text-sm"></div>
+        
+        <!-- Project Dropdown -->
+        <div class="mb-3">
+            <label for="project-select" class="block text-sm font-medium text-gray-700 mb-1">Assign to Project:</label>
+            <select id="project-select" class="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 bg-white">
+                <option value="" disabled selected>Loading projects...</option>
+            </select>
+        </div>
 
-        <textarea id="log-text" class="w-full p-4 h-32 rounded-xl bg-slate-700 text-text-color resize-none focus:ring-2 focus:ring-indigo-500 border-none outline-none transition-colors" placeholder="Type your thoughts here, or use the buttons below..."></textarea>
+        <textarea id="log-text" class="w-full p-3 h-24 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 resize-none" placeholder="Type your thoughts here, or use the buttons below..."></textarea>
+        
+        <!-- Translation Output Area -->
+        <div id="translation-output" class="hidden mt-4 p-3 bg-gray-100 border border-gray-300 rounded-md">
+            <h3 class="text-sm font-semibold mb-1 text-gray-700 flex items-center">
+                <i data-lucide="languages" class="w-4 h-4 mr-1"></i> Translation Result:
+            </h3>
+            <p id="translation-text" class="text-sm text-gray-800"></p>
+        </div>
+        
+        <!-- Media Preview Area -->
+        <div id="media-preview" class="mt-4 p-3 border border-gray-300 rounded-md hidden bg-gray-50">
+            <h3 class="text-sm font-medium mb-2 text-gray-500">Media Attached:</h3>
+            <!-- Content will be injected here -->
+        </div>
 
-        <div class="flex flex-wrap gap-4 mt-4">
+
+        <div class="flex flex-wrap gap-2 mt-4">
             <!-- Voice Dictation Button -->
-            <button id="voice-button" class="action-button flex-1 min-w-[120px] sm:min-w-0 flex items-center justify-center p-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 disabled:opacity-50" title="Start Voice Dictation">
-                <i data-lucide="mic" class="w-5 h-5 mr-2"></i> 
+            <button id="voice-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-red-600 text-white font-medium rounded-md hover:bg-red-700 transition disabled:opacity-50 text-sm" title="Start Voice Dictation">
+                <i data-lucide="mic" class="w-4 h-4 mr-1"></i> 
                 <span id="voice-label">Start Voice</span>
+            </button>
+
+            <!-- Translate Button -->
+            <button id="translate-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-gray-500 text-white font-medium rounded-md hover:bg-gray-600 transition disabled:opacity-50 text-sm" title="Translate Text (English <> Spanish)">
+                <i data-lucide="languages" class="w-4 h-4 mr-1"></i> 
+                Translate
             </button>
             
             <!-- Photo Upload Button -->
-            <button id="photo-button" class="action-button flex-1 min-w-[120px] sm:min-w-0 flex items-center justify-center p-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-500 disabled:opacity-50" title="Upload Photo">
-                <i data-lucide="camera" class="w-5 h-5 mr-2"></i> 
+            <button id="photo-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 transition disabled:opacity-50 text-sm" title="Upload Photo">
+                <i data-lucide="camera" class="w-4 h-4 mr-1"></i> 
                 Photo
             </button>
             <input type="file" id="photo-input" accept="image/*" class="hidden">
 
             <!-- Video Upload Button -->
-            <button id="video-button" class="action-button flex-1 min-w-[120px] sm:min-w-0 flex items-center justify-center p-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-500 disabled:opacity-50" title="Upload Video">
-                <i data-lucide="video" class="w-5 h-5 mr-2"></i> 
+            <button id="video-button" class="flex-1 min-w-[100px] flex items-center justify-center p-3 bg-teal-600 text-white font-medium rounded-md hover:bg-teal-700 transition disabled:opacity-50 text-sm" title="Upload Video">
+                <i data-lucide="video" class="w-4 h-4 mr-1"></i> 
                 Video
             </button>
             <input type="file" id="video-input" accept="video/*" class="hidden">
 
             <!-- Save Button -->
-            <button id="save-button" class="action-button w-full sm:w-auto flex-grow flex items-center justify-center p-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 disabled:opacity-50" disabled>
+            <button id="save-button" class="w-full flex-grow flex items-center justify-center p-3 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 transition disabled:opacity-50 mt-2 text-base" disabled>
                 <i data-lucide="save" class="w-5 h-5 mr-2"></i> 
                 Save Log
             </button>
         </div>
-        
-        <!-- Placeholder for media preview -->
-        <div id="media-preview" class="mt-4 p-3 border border-slate-600 rounded-xl hidden">
-            <h3 class="text-sm font-medium mb-2 text-secondary-text">Media Attached:</h3>
-            <!-- Content will be injected here -->
-        </div>
     </section>
 
     <!-- Log History Section -->
-    <section class="log-card p-6 rounded-xl shadow-2xl">
-        <h2 class="text-2xl font-semibold mb-4 text-indigo-300">Log History</h2>
+    <section class="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+        <h2 class="text-xl font-semibold mb-4 text-gray-700">Log History</h2>
         <div id="log-history" class="space-y-4">
-            <p id="loading-logs" class="text-center text-secondary-text">Loading logs...</p>
+            <p id="loading-logs" class="text-center text-gray-500">Loading logs...</p>
         </div>
     </section>
 </div>
@@ -139,16 +129,24 @@
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
     const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent";
+    const apiKey = ""; // API key is provided by the canvas environment for the fetch call
     
     // --- State and DOM Elements ---
     let db, auth, userId = null;
     let isAuthReady = false;
     let currentMedia = null; // Stores { type: 'image'/'video', data: base64_string }
+    let projects = {}; // Store project lookup { id: name }
+    
+    // Voice recognition related variables
+    let recognition = null;
     let isRecording = false;
 
     const logTextEl = document.getElementById('log-text');
+    const projectSelectEl = document.getElementById('project-select');
     const saveButtonEl = document.getElementById('save-button');
     const voiceButtonEl = document.getElementById('voice-button');
+    const translateButtonEl = document.getElementById('translate-button');
     const photoButtonEl = document.getElementById('photo-button');
     const photoInputEl = document.getElementById('photo-input');
     const videoButtonEl = document.getElementById('video-button');
@@ -159,18 +157,22 @@
     const voiceLabelEl = document.getElementById('voice-label');
     const errorEl = document.getElementById('error-message');
     const statusEl = document.getElementById('status-message');
+    const translationOutputEl = document.getElementById('translation-output');
+    const translationTextEl = document.getElementById('translation-text');
     
     // --- Utility Functions ---
 
     const showMessage = (element, message, isError = false) => {
         element.textContent = message;
         element.classList.remove('hidden');
+        // Reset classes to ensure only one style is applied
+        element.className = element.className.split(' ').filter(c => !c.startsWith('bg-') && !c.startsWith('text-') && !c.startsWith('border-')).join(' ');
+        element.classList.add('p-3', 'rounded-md', 'mb-4', 'font-medium', 'text-sm');
+
         if (isError) {
-            element.classList.add('bg-red-900', 'text-red-300');
-            element.classList.remove('bg-indigo-900', 'text-indigo-300');
+            element.classList.add('bg-red-50', 'text-red-600', 'border', 'border-red-200');
         } else {
-            element.classList.add('bg-indigo-900', 'text-indigo-300');
-            element.classList.remove('bg-red-900', 'text-red-300');
+            element.classList.add('bg-blue-50', 'text-blue-600', 'border', 'border-blue-200');
         }
         setTimeout(() => element.classList.add('hidden'), 5000);
     };
@@ -181,12 +183,19 @@
     const checkSaveEnablement = () => {
         const hasText = logTextEl.value.trim().length > 0;
         const hasMedia = currentMedia !== null;
-        saveButtonEl.disabled = !(hasText || hasMedia);
+        const hasProject = projectSelectEl.value.length > 0;
+        saveButtonEl.disabled = !(hasText || hasMedia) || !hasProject;
+        // Enable translate button only if there is text
+        translateButtonEl.disabled = !hasText;
+        // Hide translation output if text is cleared
+        if (!hasText) {
+             translationOutputEl.classList.add('hidden');
+             translationTextEl.textContent = '';
+        }
     };
 
     const getFirestorePath = (collectionName, docId) => {
         const base = `/artifacts/${appId}/users/${userId}/${collectionName}`;
-        // Using doc(db, path, id) if docId is provided, otherwise collection(db, path)
         return docId ? doc(db, base, docId) : collection(db, base);
     };
     
@@ -216,6 +225,8 @@
                 isAuthReady = true;
                 userStatusEl.textContent = `User ID: ${userId}`;
                 
+                // Set up listeners for projects and logs once authenticated
+                setupProjectListener();
                 setupLogListener();
             });
 
@@ -223,6 +234,62 @@
             console.error("Firebase initialization failed:", e);
             setError("Failed to initialize the database.");
         }
+    };
+    
+    // --- Project Management ---
+
+    const createDefaultProject = async () => {
+        // Use a fixed ID for the default project so it's always available for testing
+        const defaultDocRef = doc(getFirestorePath('projects'), 'default-project'); 
+        try {
+            await setDoc(defaultDocRef, { 
+                name: 'General Test Log', 
+                timestamp: serverTimestamp() 
+            }, { merge: true });
+        } catch (e) {
+            console.error("Error creating default project:", e);
+        }
+    };
+
+    const setupProjectListener = () => {
+        if (!db || !userId) return;
+
+        const q = query(getFirestorePath('projects'));
+        
+        onSnapshot(q, (snapshot) => {
+            projects = {};
+            projectSelectEl.innerHTML = '';
+            
+            if (snapshot.empty) {
+                // If no projects exist, create a default one (TEST PROJECT)
+                createDefaultProject();
+                // Ensure the select box doesn't stay stuck on 'Loading projects...'
+                projectSelectEl.innerHTML = '<option value="" disabled selected>No projects available</option>';
+                return;
+            }
+
+            // Create options and populate projects map
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                const id = doc.id;
+                projects[id] = data.name;
+
+                const option = document.createElement('option');
+                option.value = id;
+                option.textContent = data.name;
+                projectSelectEl.appendChild(option);
+            });
+            
+            // Set the first project as selected (which should be the default one for testing)
+            if (projectSelectEl.options.length > 0) {
+                projectSelectEl.selectedIndex = 0;
+            }
+            checkSaveEnablement();
+
+        }, (error) => {
+            console.error("Error fetching projects:", error);
+            setError("Failed to load projects.");
+        });
     };
     
     // --- Real-time Log Listener ---
@@ -235,20 +302,19 @@
             logHistoryEl.innerHTML = '';
             
             if (snapshot.empty) {
-                logHistoryEl.innerHTML = '<p class="text-center text-secondary-text p-4">No logs yet. Start documenting your day!</p>';
+                logHistoryEl.innerHTML = '<p class="text-center text-gray-500 p-4">No logs yet. Start documenting your day!</p>';
                 document.getElementById('loading-logs')?.remove();
                 return;
             }
 
+            // Map and sort entries by timestamp (latest first)
             snapshot.docs
                 .map(doc => ({ id: doc.id, ...doc.data() }))
-                // Sort by timestamp descending
                 .sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0))
                 .forEach(entry => {
                     logHistoryEl.appendChild(createLogElement(entry));
                 });
             
-            // Re-render Lucide icons after DOM update
             lucide.createIcons();
         }, (error) => {
             console.error("Error fetching logs:", error);
@@ -259,40 +325,56 @@
     // --- DOM Creation for Log Entry ---
     const createLogElement = (entry) => {
         const date = entry.timestamp ? entry.timestamp.toDate().toLocaleString() : 'Saving...';
+        const projectName = projects[entry.projectId] || 'Unassigned Project';
         
         const div = document.createElement('div');
-        div.className = 'p-4 log-card rounded-xl shadow-lg border border-slate-700';
+        div.className = 'p-4 bg-white rounded-lg shadow-sm border border-gray-100';
         
         let mediaHtml = '';
         if (entry.media) {
             const mediaType = entry.media.type;
             const mediaData = entry.media.data;
             
-            // Note: Data is stored without the mime prefix, so we add it back here
             if (mediaType === 'image') {
-                mediaHtml = `<img src="data:image/jpeg;base64,${mediaData}" alt="Logged Image" class="w-full h-auto max-h-60 object-contain rounded-lg mt-3 border border-slate-600">`;
+                mediaHtml = `<img src="data:image/jpeg;base64,${mediaData}" alt="Logged Image" class="w-full h-auto max-h-60 object-contain rounded-md mt-3 border border-gray-300">`;
             } else if (mediaType === 'video') {
-                mediaHtml = `<video controls src="data:video/mp4;base64,${mediaData}" class="w-full h-auto max-h-60 object-contain rounded-lg mt-3 border border-slate-600">Video Log</video>`;
-            } else if (mediaType === 'audio') {
-                // Assuming voice recording, though currently only dictation-to-text is implemented
-                mediaHtml = `<audio controls src="data:audio/wav;base64,${mediaData}" class="w-full mt-3">Audio Log</audio>`;
+                mediaHtml = `<video controls src="data:video/mp4;base64,${mediaData}" class="w-full h-auto max-h-60 object-contain rounded-md mt-3 border border-gray-300">Video Log</video>`;
             }
         }
+        
+        // Display translation in italics as requested
+        let translationDisplay = '';
+        if (entry.translation && entry.translation.translatedText) {
+            const originalLang = entry.translation.detectedLanguage || 'Original';
+            const targetLang = entry.translation.targetLanguage || 'Translated';
+
+            translationDisplay = `
+                <p class="text-gray-500 text-xs italic mt-2 pt-2 border-t border-gray-100">
+                    [${originalLang} to ${targetLang}] ${entry.translation.translatedText}
+                </p>
+            `;
+        }
+
 
         div.innerHTML = `
-            <div class="flex justify-between items-center mb-2">
-                <span class="text-xs font-medium text-indigo-400 flex items-center">
-                    <i data-lucide="calendar" class="w-3 h-3 mr-1"></i> ${date}
-                </span>
-                <button class="delete-log text-red-500 hover:text-red-400 transition-colors" data-id="${entry.id}" title="Delete Log">
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <span class="text-xs font-medium text-blue-600 flex items-center">
+                        <i data-lucide="calendar" class="w-3 h-3 mr-1"></i> ${date}
+                    </span>
+                    <span class="text-xs font-semibold text-gray-500 flex items-center mt-1">
+                        <i data-lucide="folder-open" class="w-3 h-3 mr-1"></i> ${projectName}
+                    </span>
+                </div>
+                <button class="delete-log text-red-500 hover:text-red-700 transition-colors" data-id="${entry.id}" title="Delete Log">
                      <i data-lucide="trash-2" class="w-4 h-4"></i> 
                 </button>
             </div>
-            <p class="text-sm whitespace-pre-wrap">${entry.text || 'No text recorded.'}</p>
+            <p class="text-gray-700 text-sm whitespace-pre-wrap">${entry.text || 'No text recorded.'}</p>
+            ${translationDisplay}
             ${mediaHtml}
         `;
         
-        // Add delete listener (must be done after element creation)
         const deleteButton = div.querySelector('.delete-log');
         if(deleteButton) {
             deleteButton.addEventListener('click', () => handleDeleteLog(entry.id));
@@ -306,29 +388,55 @@
         if (!db || !userId || saveButtonEl.disabled) return;
 
         const text = logTextEl.value.trim();
+        const projectId = projectSelectEl.value;
+
         if (!text && !currentMedia) {
             setError("Log must contain text or media.");
+            return;
+        }
+
+        if (!projectId) {
+            setError("Please select a project before saving.");
             return;
         }
 
         setStatus("Saving log entry...");
         saveButtonEl.disabled = true;
 
+        // Extract translation data if available in the UI
+        let translationData = null;
+        if (!translationOutputEl.classList.contains('hidden')) {
+            const fullText = translationTextEl.textContent;
+            const langMatch = fullText.match(/\((.+?) to (.+?)\):/);
+
+            if (langMatch) {
+                 translationData = {
+                     detectedLanguage: langMatch[1].trim(),
+                     targetLanguage: langMatch[2].trim(),
+                     translatedText: fullText.substring(langMatch[0].length).trim()
+                 };
+            }
+        }
+        
         try {
             const logData = {
                 text: text,
+                projectId: projectId,
                 media: currentMedia, // currentMedia is null if no media attached
+                translation: translationData,
                 timestamp: serverTimestamp(),
             };
 
-            // Use setDoc with no document ID to let Firestore auto-generate one for a new document
+            // setDoc with auto-ID generation by not passing a third argument (doc path)
             await setDoc(doc(getFirestorePath('daily_logs')), logData);
 
             // Clear state on success
             logTextEl.value = '';
             currentMedia = null;
             clearMediaPreview();
-            setStatus("Log saved successfully!");
+            translationOutputEl.classList.add('hidden');
+            translationTextEl.textContent = '';
+            setStatus("Log saved successfully! Check Log History below.");
         } catch (e) {
             console.error("Error saving log:", e);
             setError("Failed to save log entry. See console for details.");
@@ -359,7 +467,7 @@
     const clearMediaPreview = () => {
         currentMedia = null;
         mediaPreviewEl.classList.add('hidden');
-        mediaPreviewEl.innerHTML = '<h3 class="text-sm font-medium mb-2 text-secondary-text">Media Attached:</h3>';
+        mediaPreviewEl.innerHTML = '<h3 class="text-sm font-medium mb-2 text-gray-500">Media Attached:</h3>';
         checkSaveEnablement();
     };
 
@@ -372,118 +480,237 @@
 
         const reader = new FileReader();
         reader.onloadend = () => {
-            // Store the raw base64 data for Firestore
-            // We strip the mime-type prefix from the base64 string before storing
             const base64Data = reader.result.split(',')[1];
             currentMedia = { type: type, data: base64Data };
 
             // Update Preview
             mediaPreviewEl.classList.remove('hidden');
             if (type === 'image') {
-                mediaPreviewEl.innerHTML = `<h3 class="text-sm font-medium mb-2 text-secondary-text">Photo Attached:</h3><img src="${reader.result}" class="w-full h-auto max-h-40 object-contain rounded-lg">`;
+                mediaPreviewEl.innerHTML = `<h3 class="text-sm font-medium mb-2 text-gray-500">Photo Attached:</h3><img src="${reader.result}" class="w-full h-auto max-h-40 object-contain rounded-md">`;
             } else if (type === 'video') {
-                mediaPreviewEl.innerHTML = `<h3 class="text-sm font-medium mb-2 text-secondary-text">Video Attached:</h3><video controls src="${reader.result}" class="w-full h-auto max-h-40 object-contain rounded-lg">`;
+                mediaPreviewEl.innerHTML = `<h3 class="text-sm font-medium mb-2 text-gray-500">Video Attached:</h3><video controls src="${reader.result}" class="w-full h-auto max-h-40 object-contain rounded-md">`;
             }
 
             checkSaveEnablement();
             setStatus(`${type.charAt(0).toUpperCase() + type.slice(1)} attached successfully. Ready to save!`);
         };
         
-        // Convert file to base64
         reader.readAsDataURL(file);
     };
 
+    // --- LLM Translation Handler (Bidirectional) ---
+
+    const translateAndDetect = async (text) => {
+        if (!text.trim()) {
+            setError("Please enter some text to translate.");
+            return null;
+        }
+
+        translateButtonEl.disabled = true;
+        translateButtonEl.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 mr-1 animate-spin"></i> Analyzing & Translating...';
+        translationOutputEl.classList.remove('hidden');
+        translationTextEl.textContent = 'Processing translation...';
+        lucide.createIcons();
+
+        try {
+            const systemPrompt = "You are a professional language expert. Given a block of text, first identify the language (must be English or Spanish). Then, translate the text into the opposite language. Respond ONLY with a JSON object. If the text is not clearly English or Spanish, identify the language as 'Other'.";
+            const userQuery = `Analyze and translate the following text: "${text}"`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            "detectedLanguage": { "type": "STRING", "description": "The detected language, 'English', 'Spanish', or 'Other'." },
+                            "translation": { "type": "STRING", "description": "The translation into the opposite language, or an empty string if language is 'Other'." }
+                        },
+                        "propertyOrdering": ["detectedLanguage", "translation"]
+                    }
+                }
+            }
+
+            let response = null;
+            let attempts = 0;
+            const maxAttempts = 3;
+            let delay = 1000;
+
+            // Exponential backoff for API call
+            while (attempts < maxAttempts) {
+                try {
+                    response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.status === 429) {
+                        attempts++;
+                        if (attempts < maxAttempts) {
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            delay *= 2;
+                            continue; // Retry
+                        }
+                    }
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    break; // Success
+                } catch (e) {
+                    attempts++;
+                    if (attempts >= maxAttempts) throw e;
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
+
+            if (!response) {
+                throw new Error("API call failed after multiple retries.");
+            }
+            
+            const result = await response.json();
+            const jsonString = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!jsonString) {
+                throw new Error("LLM did not return a valid JSON structure.");
+            }
+            
+            const translationResult = JSON.parse(jsonString);
+
+            if (translationResult.detectedLanguage === 'Other' || !translationResult.translation || translationResult.translation.trim() === '') {
+                translationTextEl.textContent = `Language detected: ${translationResult.detectedLanguage}. Translation skipped.`;
+                setStatus("Language was not English or Spanish. Translation not saved.");
+                return null;
+            }
+
+            const targetLang = translationResult.detectedLanguage === 'English' ? 'Spanish' : 'English';
+            translationOutputEl.querySelector('h3').innerHTML = `<i data-lucide="languages" class="w-4 h-4 mr-1"></i> Translation Result:`;
+            translationTextEl.textContent = `(${translationResult.detectedLanguage} to ${targetLang}): ${translationResult.translation}`;
+            setStatus(`Translated from ${translationResult.detectedLanguage} to ${targetLang}. Translation available for saving.`);
+            lucide.createIcons();
+            
+            return { translation: translationResult.translation };
+
+        } catch (e) {
+            console.error("Translation API error:", e);
+            setError("Translation failed. The API may be unavailable or rate-limited.");
+            translationTextEl.textContent = 'Error during translation. Try again later.';
+            return null;
+        } finally {
+            translateButtonEl.disabled = false;
+            translateButtonEl.innerHTML = '<i data-lucide="languages" class="w-4 h-4 mr-1"></i> Translate';
+            lucide.createIcons();
+        }
+    };
+    
     // --- Voice Dictation Handler (Uses Web Speech API) ---
+    const setRecordingState = (recording) => {
+        isRecording = recording;
+        voiceLabelEl.textContent = recording ? 'Stop Recording' : 'Start Voice';
+        
+        // Handle UI changes 
+        if (recording) {
+            // Use bg-red-800 when recording, and add the pulsing animation
+            voiceButtonEl.classList.add('voice-recording', 'bg-red-800');
+            voiceButtonEl.classList.remove('bg-red-600', 'hover:bg-red-700');
+        } else {
+            // Revert to default non-recording state
+            voiceButtonEl.classList.remove('voice-recording', 'bg-red-800');
+            voiceButtonEl.classList.add('bg-red-600', 'hover:bg-red-700');
+        }
+        
+        // Update the Lucide icon
+        const iconElement = voiceButtonEl.querySelector('i');
+        if (iconElement) {
+            iconElement.setAttribute('data-lucide', recording ? 'square' : 'mic'); 
+            lucide.createIcons(); // Re-render icon
+        }
+    };
+    
     const setupVoiceDictation = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
         if (!SpeechRecognition) {
             voiceButtonEl.disabled = true;
-            voiceButtonEl.innerHTML = '<i data-lucide="volume-x" class="w-5 h-5 mr-2"></i> Voice Not Supported';
+            voiceButtonEl.innerHTML = '<i data-lucide="volume-x" class="w-4 h-4 mr-1"></i> Voice Not Supported';
             setError("Your browser does not support Web Speech API (Voice Dictation).");
             lucide.createIcons();
             return;
         }
 
-        const recognition = new SpeechRecognition();
+        recognition = new SpeechRecognition();
         recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        const setRecordingState = (recording) => {
-            isRecording = recording;
-            voiceLabelEl.textContent = recording ? 'Stop Recording' : 'Start Voice';
-            
-            // Handle UI changes
-            if (recording) {
-                voiceButtonEl.classList.add('voice-recording', 'bg-red-700');
-                voiceButtonEl.classList.remove('bg-red-600');
-            } else {
-                voiceButtonEl.classList.remove('voice-recording', 'bg-red-700');
-                voiceButtonEl.classList.add('bg-red-600');
-            }
-            
-            // Update the Lucide icon
-            const iconElement = voiceButtonEl.querySelector('i');
-            if (iconElement) {
-                iconElement.setAttribute('data-lucide', recording ? 'square' : 'mic'); 
-                lucide.createIcons(); 
-            }
-        };
+        recognition.lang = 'en-US'; // Default language set to English
+        recognition.continuous = true; 
 
         recognition.onstart = () => {
             setRecordingState(true);
-            setStatus("Listening... start speaking now.");
+            setStatus("Listening... start speaking now. Speak in English or Spanish.");
         };
 
         recognition.onresult = (event) => {
-            let interimTranscript = '';
             let finalTranscript = '';
 
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
                     finalTranscript += transcript + ' ';
-                } else {
-                    interimTranscript += transcript;
-                }
+                } 
             }
-            // Append the final result to the existing text area content
-            logTextEl.value += finalTranscript;
-            checkSaveEnablement();
+
+            if (finalTranscript) {
+                // Append the final result to the existing text area content
+                logTextEl.value += finalTranscript;
+                // Scroll to the bottom to show the new text
+                logTextEl.scrollTop = logTextEl.scrollHeight;
+                checkSaveEnablement();
+            }
         };
 
-        recognition.onend = () => {
-            // Called when recognition stops, either naturally or via recognition.stop()
+        recognition.onend = async () => {
             setRecordingState(false);
-            setStatus("Voice dictation stopped.");
+            
+            const currentText = logTextEl.value.trim();
+            // Automatically attempt translation if text was captured
+            if (currentText.length > 0) {
+                setStatus("Voice dictation stopped. Detecting language and translating...");
+                // The translateAndDetect function updates the UI with the translation
+                await translateAndDetect(currentText); 
+            } else {
+                setStatus("Voice dictation stopped.");
+            }
         };
 
         recognition.onerror = (event) => {
-            setRecordingState(false);
-            setError(`Voice Error: ${event.error}. Please ensure microphone access is granted in your browser settings or a security popup.`);
+            setRecordingState(false); 
+            setError(`Voice Error: ${event.error}. If permissions are on, try reloading the page.`);
         };
         
         // This is the main button click handler
         voiceButtonEl.addEventListener('click', () => {
             if (isRecording) {
-                // If currently recording, stop it. This triggers onend.
                 recognition.stop();
             } else {
-                // If not recording, start it. This triggers onstart.
+                setRecordingState(true); 
+                
                 try {
                     recognition.start();
                 } catch(e) {
                     if (e.name === 'InvalidStateError') {
-                        setStatus("Already attempting to listen...");
+                        setStatus("Already attempting to listen. Please wait a moment or click 'Stop Recording'.");
                     } else {
                         console.error("Recognition start failed:", e);
-                        setError("Could not start microphone. Check permissions or try another browser.");
+                        setError("Could not start microphone. Check browser console for details.");
                     }
+                    setRecordingState(false);
                 }
             }
         });
     };
-
+    
     // --- Event Listeners and Initial Load ---
     window.onload = () => {
         // Initialize Firebase on load
@@ -491,6 +718,7 @@
 
         // Initial check for save button status
         logTextEl.addEventListener('input', checkSaveEnablement);
+        projectSelectEl.addEventListener('change', checkSaveEnablement);
         saveButtonEl.addEventListener('click', handleSaveLog);
         
         // Setup Media Inputs
@@ -499,6 +727,9 @@
 
         videoButtonEl.addEventListener('click', () => videoInputEl.click());
         videoInputEl.addEventListener('change', (e) => handleMediaChange(e, 'video'));
+        
+        // Setup Translation (Button click now also triggers the bidirectional detection/translation)
+        translateButtonEl.addEventListener('click', () => translateAndDetect(logTextEl.value));
 
         // Setup Voice Dictation
         setupVoiceDictation();
