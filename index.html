@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beta Test App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        .card {
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        .btn {
+            background-color: #4f46e5;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #4338ca;
+        }
+        input, textarea {
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+        }
+        .media-tile {
+            @apply flex flex-col items-center justify-center p-4 bg-gray-100 rounded-lg cursor-pointer transition-colors hover:bg-gray-200 border border-gray-300 shadow-sm;
+        }
+        .media-tile .icon {
+            @apply text-3xl mb-2 text-gray-600;
+        }
+        .media-tile .text {
+            @apply text-sm font-medium text-gray-800;
+        }
+        .red-btn {
+            background-color: #ef4444; /* red-500 */
+            color: white;
+            touch-action: none; /* Prevents mobile browsers from treating hold as a selection */
+        }
+        .red-btn:hover {
+            background-color: #dc2626; /* red-600 */
+        }
+        .media-section-card {
+            @apply bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4;
+        }
+        /* Pulsing animation for the microphone button */
+        @keyframes pulse-red {
+            0%, 100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            50% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+        }
+        .pulsing {
+            animation: pulse-red 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-3xl font-bold text-center my-6">Beta Test Application</h1>
+        
+        <!-- Tab Navigation -->
+        <div class="flex justify-center space-x-4 mb-6">
+            <button id="daily-log-tab" class="btn px-6 py-2">Daily Log</button>
+            <button id="scheduling-tab" class="btn px-6 py-2">Scheduling</button>
+            <button id="log-overview-tab" class="btn px-6 py-2">Log Overview</button>
+        </div>
+
+        <!-- Daily Log Module -->
+        <div id="daily-log-module" class="card">
+            <h2 class="text-2xl font-semibold mb-4">Daily Job Log</h2>
+            <div id="ai-summary-display" class="bg-gray-100 p-4 rounded-lg mb-4 text-gray-700">
+                <p class="font-bold">AI-Generated Summary:</p>
+                <p id="summary-english" class="mb-2 italic text-sm text-gray-500">
+                    A summary of the day's events will appear here once the log is saved.
+                </p>
+                <p id="summary-spanish" class="italic text-sm text-gray-500">
+                    Un resumen de los eventos del día aparecerá aquí una vez que se guarde el registro.
+                </p>
+            </div>
+            <form id="daily-log-form" class="space-y-4">
+                <div>
+                    <label for="project-select" class="block font-medium mb-1">Select Project</label>
+                    <select id="project-select" class="w-full p-2 border border-gray-300 rounded-md">
+                        <option value="">-- Select a Project --</option>
+                        <!-- Project options will be populated here -->
+                    </select>
+                </div>
+                <div>
+                    <label for="log-text" class="block font-medium mb-1">Log Entry</label>
+                    <div class="flex items-center space-x-2">
+                        <textarea id="log-text" class="w-full flex-1" rows="4"></textarea>
+                        <button id="voice-to-text-btn" type="button" class="red-btn p-3 rounded-md">
+                            <i class="fas fa-microphone text-xl"></i>
+                        </button>
+                    </div>
+                    <div id="recording-status" class="text-sm text-center text-gray-500 mt-2 hidden">
+                        Listening...
+                    </div>
+                </div>
+
+                <!-- New Media Section Container -->
+                <div class="media-section-card">
+                    <h3 class="font-medium mb-2">Add Media</h3>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div id="add-photo-tile" class="media-tile">
+                            <i class="fas fa-camera icon"></i>
+                            <span class="text">Add Photo</span>
+                        </div>
+                        <div id="add-video-tile" class="media-tile">
+                            <i class="fas fa-video icon"></i>
+                            <span class="text">Add Video</span>
+                        </div>
+                        <div id="add-voice-tile" class="media-tile">
+                            <i class="fas fa-file-audio icon"></i>
+                            <span class="text">Add Voice Note</span>
+                        </div>
+                    </div>
+                    <input type="file" id="media-upload-input" class="hidden" multiple>
+                </div>
+                
+                <!-- Media Preview Section -->
+                <div id="media-preview-container" class="mt-4 grid grid-cols-3 gap-4">
+                    <!-- Thumbnails will be rendered here -->
+                </div>
+
+                <div class="flex space-x-2">
+                    <button type="submit" class="btn flex-1">Save Log</button>
+                </div>
+            </form>
+            <hr class="my-6">
+            <div id="daily-log-feed" class="space-y-6">
+                <!-- Daily logs will be rendered here dynamically -->
+            </div>
+        </div>
+
+        <!-- Scheduling Module -->
+        <div id="scheduling-module" class="card hidden">
+            <h2 class="text-2xl font-semibold mb-4">Schedule Module</h2>
+            <form id="schedule-form" class="space-y-4">
+                <div>
+                    <label for="schedule-project-select" class="block font-medium mb-1">Project</label>
+                    <select id="schedule-project-select" class="w-full p-2 border border-gray-300 rounded-md">
+                        <option value="">-- Select a Project --</option>
+                        <!-- Projects populated here -->
+                    </select>
+                </div>
+                <div>
+                    <label for="worker-multi-select" class="block font-medium mb-1">Assign Workers</label>
+                    <select id="worker-multi-select" multiple class="w-full p-2 border border-gray-300 rounded-md h-32">
+                        <!-- Workers populated here -->
+                    </select>
+                </div>
+                <div class="flex space-x-4">
+                    <div class="flex-1">
+                        <label for="start-time" class="block font-medium mb-1">Start Time</label>
+                        <input type="time" id="start-time" class="w-full">
+                    </div>
+                    <div class="flex-1">
+                        <label for="end-time" class="block font-medium mb-1">End Time</label>
+                        <input type="time" id="end-time" class="w-full">
+                    </div>
+                </div>
+                <div>
+                    <button type="submit" class="btn w-full">Schedule Project</button>
+                </div>
+            </form>
+            <hr class="my-6">
+            <div id="schedule-overview">
+                <h3 class="text-xl font-semibold mb-4">Daily Schedule Overview</h3>
+                <div class="bg-gray-100 p-4 rounded-lg">
+                    <h4 class="font-bold text-lg mb-2">Monday, August 25</h4>
+                    <ul class="list-disc list-inside space-y-2">
+                        <li>
+                            <span class="font-semibold">Riverton Plaza:</span> 8:00 AM - 4:00 PM
+                            <p class="text-sm text-gray-600 ml-4">Assigned Workers: Jane Doe, John Smith</p>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Log Overview Module -->
+        <div id="log-overview-module" class="card hidden">
+            <h2 class="text-2xl font-semibold mb-4">Daily Log Overview</h2>
+            <div class="space-y-6" id="log-overview-feed">
+                <!-- Log entries will be rendered here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="modal-container" class="hidden">
+        <!-- New User Modal -->
+        <div id="add-user-modal" class="modal hidden">
+            <div class="modal-content">
+                <h3 class="text-xl font-semibold mb-4">Add New User</h3>
+                <form id="add-user-form" class="space-y-4">
+                    <div>
+                        <label for="new-user-name" class="block font-medium mb-1">Name</label>
+                        <input type="text" id="new-user-name" required>
+                    </div>
+                    <div>
+                        <label for="new-user-email" class="block font-medium mb-1">Email</label>
+                        <input type="email" id="new-user-email" required>
+                    </div>
+                    <div class="flex justify-end space-x-2 mt-4">
+                        <button type="button" class="btn bg-gray-500 hover:bg-gray-600" onclick="hideModal('add-user-modal')">Cancel</button>
+                        <button type="submit" class="btn">Add User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, collection, addDoc, getDocs, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables for Firebase
+        let app, db, auth, userId;
+
+        // Custom modal functions
+        function showModal(id) {
+            document.getElementById(id).classList.remove('hidden');
+            document.getElementById('modal-container').classList.remove('hidden');
+        }
+        window.hideModal = (id) => {
+            document.getElementById(id).classList.add('hidden');
+            document.getElementById('modal-container').classList.add('hidden');
+        };
+
+        // Main app logic
+        document.addEventListener('DOMContentLoaded', async () => {
+            setLogLevel('debug'); // For debugging Firestore operations
+
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+                apiKey: "YOUR_API_KEY",
+                authDomain: "YOUR_AUTH_DOMAIN",
+                projectId: "YOUR_PROJECT_ID",
+                storageBucket: "YOUR_STORAGE_BUCKET",
+                messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+                appId: "YOUR_APP_ID"
+            };
+
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+            // Initialize Firebase
+            try {
+                app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                // Sign in with custom token if available, otherwise anonymously
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        console.log("Authenticated with userId:", userId);
+                        // Fetch initial data or set up real-time listeners
+                        setupListeners();
+                        // This userId is important for others to find you in multiplayer apps
+                        console.log("Your User ID is: ", userId);
+                    } else {
+                        console.log("User is signed out.");
+                        // Handle signed-out state
+                    }
+                });
+
+            } catch (e) {
+                console.error("Firebase Initialization Error:", e);
+            }
+
+            // Tab functionality
+            const dailyLogTab = document.getElementById('daily-log-tab');
+            const schedulingTab = document.getElementById('scheduling-tab');
+            const logOverviewTab = document.getElementById('log-overview-tab');
+
+            const dailyLogModule = document.getElementById('daily-log-module');
+            const schedulingModule = document.getElementById('scheduling-module');
+            const logOverviewModule = document.getElementById('log-overview-module');
+
+            const showTab = (tab) => {
+                dailyLogModule.classList.add('hidden');
+                schedulingModule.classList.add('hidden');
+                logOverviewModule.classList.add('hidden');
+
+                dailyLogTab.classList.remove('bg-gray-300');
+                schedulingTab.classList.remove('bg-gray-300');
+                logOverviewTab.classList.remove('bg-gray-300');
+
+                if (tab === 'daily-log') {
+                    dailyLogModule.classList.remove('hidden');
+                    dailyLogTab.classList.add('bg-gray-300');
+                } else if (tab === 'scheduling') {
+                    schedulingModule.classList.remove('hidden');
+                    schedulingTab.classList.add('bg-gray-300');
+                } else if (tab === 'log-overview') {
+                    logOverviewModule.classList.remove('hidden');
+                    logOverviewTab.classList.add('bg-gray-300');
+                }
+            };
+
+            dailyLogTab.addEventListener('click', () => showTab('daily-log'));
+            schedulingTab.addEventListener('click', () => showTab('scheduling'));
+            logOverviewTab.addEventListener('click', () => showTab('log-overview'));
+
+            // Show the first tab by default
+            showTab('daily-log');
+            
+            // Placeholder data for projects and workers
+            const PROJECTS = [
+                { id: "proj1", name: "Riverton Plaza" },
+                { id: "proj2", name: "Oakwood Apartments" },
+                { id: "proj3", name: "Central Park Renovation" }
+            ];
+            
+            function populateProjectDropdowns() {
+                const dailyLogProjectSelect = document.getElementById('project-select');
+                const scheduleProjectSelect = document.getElementById('schedule-project-select');
+                
+                PROJECTS.forEach(project => {
+                    const option1 = document.createElement('option');
+                    option1.value = project.id;
+                    option1.textContent = project.name;
+                    dailyLogProjectSelect.appendChild(option1);
+
+                    const option2 = document.createElement('option');
+                    option2.value = project.id;
+                    option2.textContent = project.name;
+                    scheduleProjectSelect.appendChild(option2);
+                });
+            }
+
+            async function setupListeners() {
+                if (!db || !userId) {
+                    console.error("Firestore or userId is not ready.");
+                    return;
+                }
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                populateProjectDropdowns();
+
+                // --- Voice to Text Logic ---
+                const voiceToTextBtn = document.getElementById('voice-to-text-btn');
+                const logTextarea = document.getElementById('log-text');
+                const recordingStatus = document.getElementById('recording-status');
+
+                // Check for Web Speech API support
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+                if (SpeechRecognition) {
+                    const recognition = new SpeechRecognition();
+                    recognition.interimResults = false;
+                    recognition.lang = 'en-US';
+
+                    let isRecording = false;
+                    let finalTranscript = '';
+
+                    const startRecording = () => {
+                        finalTranscript = '';
+                        recognition.start();
+                        voiceToTextBtn.classList.add('pulsing');
+                        recordingStatus.classList.remove('hidden');
+                        isRecording = true;
+                    };
+
+                    const stopRecording = () => {
+                        if (isRecording) {
+                            recognition.stop();
+                            voiceToTextBtn.classList.remove('pulsing');
+                            recordingStatus.classList.add('hidden');
+                            isRecording = false;
+                        }
+                    };
+
+                    voiceToTextBtn.addEventListener('mousedown', startRecording);
+                    voiceToTextBtn.addEventListener('mouseup', stopRecording);
+                    // Add touch events for mobile support
+                    voiceToTextBtn.addEventListener('touchstart', (e) => {
+                        e.preventDefault(); // Prevents touch events from triggering mouse events
+                        startRecording();
+                    });
+                    voiceToTextBtn.addEventListener('touchend', (e) => {
+                        e.preventDefault();
+                        stopRecording();
+                    });
+
+                    recognition.onresult = (event) => {
+                        for (let i = event.resultIndex; i < event.results.length; ++i) {
+                            if (event.results[i].isFinal) {
+                                finalTranscript += event.results[i][0].transcript;
+                            }
+                        }
+                    };
+
+                    recognition.onend = () => {
+                        if (finalTranscript.trim().length > 0) {
+                            const bulletPoint = '• ';
+                            const currentText = logTextarea.value.trim();
+                            
+                            // Check if the log entry is empty to avoid a leading newline
+                            if (currentText === '') {
+                                logTextarea.value = bulletPoint + finalTranscript;
+                            } else {
+                                logTextarea.value += '\n' + bulletPoint + finalTranscript;
+                            }
+                        }
+                    };
+
+                    recognition.onerror = (event) => {
+                        console.error('Speech recognition error:', event.error);
+                        voiceToTextBtn.classList.remove('pulsing');
+                        recordingStatus.classList.add('hidden');
+                        isRecording = false;
+                        // Provide user feedback
+                        const errorMessage = `Speech recognition error: ${event.error}. Please check your microphone permissions.`;
+                        console.error(errorMessage);
+                    };
+
+                } else {
+                    voiceToTextBtn.disabled = true;
+                    recordingStatus.textContent = 'Voice-to-text not supported by your browser.';
+                    recordingStatus.classList.remove('hidden');
+                }
+
+                // --- Handle file uploads and create thumbnails ---
+                const photoTile = document.getElementById('add-photo-tile');
+                const videoTile = document.getElementById('add-video-tile');
+                const mediaInput = document.getElementById('media-upload-input');
+                const mediaPreviewContainer = document.getElementById('media-preview-container');
+
+                photoTile.addEventListener('click', () => {
+                    mediaInput.accept = "image/*";
+                    mediaInput.click();
+                });
+
+                videoTile.addEventListener('click', () => {
+                    mediaInput.accept = "video/*";
+                    mediaInput.click();
+                });
+
+                mediaInput.addEventListener('change', (e) => {
+                    const files = e.target.files;
+                    mediaPreviewContainer.innerHTML = ''; // Clear existing previews
+
+                    if (files) {
+                        Array.from(files).forEach(file => {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                                const fileUrl = event.target.result;
+                                const mediaElement = file.type.startsWith('video/') ? document.createElement('video') : document.createElement('img');
+                                
+                                mediaElement.src = fileUrl;
+                                mediaElement.className = 'w-full h-32 object-cover rounded-lg shadow-md';
+                                mediaElement.setAttribute('alt', `Preview of ${file.name}`);
+
+                                // Check if it's a video and set controls for a better preview
+                                if (file.type.startsWith('video/')) {
+                                    mediaElement.setAttribute('controls', 'true');
+                                }
+                                
+                                mediaPreviewContainer.appendChild(mediaElement);
+                            };
+                            reader.readAsDataURL(file);
+                        });
+                    }
+                });
+
+
+                // --- Daily Log Logic ---
+                const dailyLogForm = document.getElementById('daily-log-form');
+                dailyLogForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const logText = document.getElementById('log-text').value;
+                    const selectedProject = document.getElementById('project-select');
+                    const projectId = selectedProject.value;
+                    const projectName = selectedProject.options[selectedProject.selectedIndex].text;
+                    
+                    // Placeholder for AI summary generation.
+                    // This would be a real API call in a production app.
+                    const aiSummary = `AI-generated summary of: "${logText.substring(0, 30)}..."`;
+
+                    console.log("Saving log...");
+                    const logData = {
+                        author_id: userId,
+                        text: logText,
+                        projectId: projectId,
+                        projectName: projectName,
+                        ai_summary: aiSummary,
+                        created_at: new Date(),
+                        // Placeholder for media. In a real app, you would upload to storage
+                        // and save the URL here.
+                        media_urls: ["https://placehold.co/150x150/e2e8f0/64748b?text=Photo+1", "https://placehold.co/150x150/e2e8f0/64748b?text=Photo+2"]
+                    };
+                    try {
+                        const logsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/dailyLogs`);
+                        await addDoc(logsCollectionRef, logData);
+                        console.log("Log entry added!");
+                        // Clear form
+                        dailyLogForm.reset();
+                        mediaPreviewContainer.innerHTML = ''; // Clear previews after saving
+                    } catch (e) {
+                        console.error("Error adding document: ", e);
+                    }
+                });
+
+                // --- Log Overview Logic (Daily Log Feed) ---
+                const logOverviewFeed = document.getElementById('log-overview-feed');
+                const logsCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/dailyLogs`);
+
+                onSnapshot(logsCollectionRef, (snapshot) => {
+                    const logs = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    })).sort((a, b) => b.created_at.toMillis() - a.created_at.toMillis());
+
+                    // Group logs by project
+                    const logsByProject = logs.reduce((acc, log) => {
+                        (acc[log.projectName] = acc[log.projectName] || []).push(log);
+                        return acc;
+                    }, {});
+
+                    logOverviewFeed.innerHTML = ''; // Clear previous logs
+                    
+                    // Render logs
+                    for (const projectName in logsByProject) {
+                        const projectGroupDiv = document.createElement('div');
+                        projectGroupDiv.className = 'mb-6 p-4 border rounded-lg bg-gray-50';
+                        projectGroupDiv.innerHTML = `
+                            <h3 class="text-xl font-semibold mb-2">${projectName}</h3>
+                            <div class="space-y-4"></div>
+                        `;
+                        const logsContainer = projectGroupDiv.querySelector('div.space-y-4');
+
+                        logsByProject[projectName].forEach(log => {
+                            const date = log.created_at.toDate().toLocaleDateString();
+                            const time = log.created_at.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                            const logEntryHtml = `
+                                <div class="border p-3 rounded-lg bg-white shadow-sm">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm text-gray-500">${date} at ${time}</span>
+                                    </div>
+                                    <p class="text-base mb-2">
+                                        ${log.text}
+                                    </p>
+                                    <div class="flex space-x-2 overflow-x-auto mb-2">
+                                        ${log.media_urls.map(url => `
+                                            <a href="${url}" target="_blank">
+                                                <img src="${url}" class="rounded-md w-20 h-20 object-cover" alt="Log media" />
+                                            </a>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                            logsContainer.innerHTML += logEntryHtml;
+                        });
+
+                        logOverviewFeed.appendChild(projectGroupDiv);
+                    }
+                });
+            }
+        });
+
+    </script>
+</body>
+</html>
