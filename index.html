@@ -3,610 +3,510 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily Log</title>
-    <!-- Load Tailwind CSS -->
+    <title>Daily Log App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load React, ReactDOM, and Babel for JSX compilation in the browser -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-      body { font-family: 'Inter', sans-serif; background-color: #f9fafb; }
-      .log-entry { transition: transform 0.3s ease-out, opacity 0.3s ease-out; }
-      /* Custom focus style for the dictation button */
-      .dictation-button-active {
-          box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.5); /* Tailwind red-500 equivalent */
-      }
-    </style>
-    
-    <!-- 1. Load Lucide Icons (asynchronously, sets window.lucide) -->
-    <script type="module">
-      import * as lucide from 'https://esm.run/lucide-react@0.292.0';
-      window.lucide = lucide; // Expose globally
-    </script>
-    
-    <!-- 2. Load Firebase SDKs (asynchronously, sets window.firebase) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        /* Custom Dark Theme Styles for better contrast and mood */
+        :root {
+            --primary-color: #4f46e5; /* Indigo 600 */
+            --background-color: #0f172a; /* Slate 900 */
+            --card-background: #1e293b; /* Slate 800 */
+            --text-color: #f1f5f9; /* Slate 100 */
+            --secondary-text: #94a3b8; /* Slate 400 */
+        }
 
-        // Expose Firebase functions to the global window object
-        window.firebase = {
-            initializeApp,
-            getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
-            getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp
-        };
-    </script>
-</head>
-<body>
-    <div id="root">
-        <!-- Initial loading message while waiting for async modules -->
-        <div class="flex flex-col items-center justify-center h-40 text-gray-500">
-             <svg class="animate-spin h-6 w-6 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-             <span class="font-medium">Loading application resources...</span>
-        </div>
-    </div>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+        }
 
-    <!-- 3. Main React Application (Defined in Babel) -->
-    <script type="text/babel">
-        const { useState, useEffect, useRef, useMemo } = React;
-        const { createRoot } = ReactDOM;
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .log-card {
+            background-color: var(--card-background);
+            border: 1px solid #334155; /* Slate 700 */
+        }
         
-        // --- Global Variables for Canvas Environment ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-        const apiKey = ""; // API key is left empty as per instructions
+        /* Custom button styling for interactivity and shadow */
+        .action-button {
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
 
-        // Speech Recognition setup 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const isSpeechRecognitionSupported = !!SpeechRecognition;
+        .action-button:hover:not(:disabled) {
+            box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3), 0 4px 6px -4px rgba(79, 70, 229, 0.2);
+            transform: translateY(-1px);
+        }
 
-        const PROJECT_OPTIONS = ['Test Project', 'Daily Reflection', 'Meeting Notes', 'Idea Brainstorming', 'Create New Project'];
-        const LANGUAGE_OPTIONS = ['English', 'Spanish'];
+        .action-button:active:not(:disabled) {
+            transform: translateY(1px);
+            box-shadow: none;
+        }
 
-        /**
-         * Component for selecting the log type (Voice, Photo, Video)
-         */
-        const ModeButton = ({ mode, icon: Icon, label, currentMode, onClick }) => (
-            <button
-                onClick={() => onClick(mode)}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl transition duration-150 w-full sm:w-1/3 border-2 ${
-                    currentMode === mode
-                        ? 'bg-indigo-600 text-white border-indigo-700 shadow-lg scale-105'
-                        : 'bg-white text-gray-700 border-gray-200 hover:bg-indigo-50 hover:text-indigo-600'
-                }`}
-            >
-                <Icon className="w-6 h-6 mb-1" />
-                <span className="text-xs font-semibold">{label}</span>
+        /* Voice button specific pulsing animation */
+        .voice-recording {
+            animation: pulse-red 1s infinite;
+        }
+
+        @keyframes pulse-red {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons for Buttons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="min-h-screen">
+
+<div class="container">
+    <header class="text-center mb-10">
+        <h1 class="text-5xl font-extrabold text-indigo-400">Daily Log</h1>
+        <p class="text-xl mt-2 text-secondary-text">Capture your day using text, voice, photos, or video.</p>
+        <p id="user-status" class="text-xs mt-1 text-gray-500"></p>
+    </header>
+
+    <!-- Input Section -->
+    <section class="log-card p-6 rounded-xl shadow-2xl mb-8">
+        <h2 class="text-2xl font-semibold mb-4 text-indigo-300">New Entry</h2>
+        
+        <div id="error-message" class="hidden p-3 bg-red-900 text-red-300 rounded-lg mb-4"></div>
+        <div id="status-message" class="hidden p-3 bg-indigo-900 text-indigo-300 rounded-lg mb-4"></div>
+
+        <textarea id="log-text" class="w-full p-4 h-32 rounded-xl bg-slate-700 text-text-color resize-none focus:ring-2 focus:ring-indigo-500 border-none outline-none transition-colors" placeholder="Type your thoughts here, or use the buttons below..."></textarea>
+
+        <div class="flex flex-wrap gap-4 mt-4">
+            <!-- Voice Dictation Button -->
+            <button id="voice-button" class="action-button flex-1 min-w-[120px] sm:min-w-0 flex items-center justify-center p-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-500 disabled:opacity-50" title="Start Voice Dictation">
+                <i data-lucide="mic" class="w-5 h-5 mr-2"></i> 
+                <span id="voice-label">Start Voice</span>
             </button>
-        );
+            
+            <!-- Photo Upload Button -->
+            <button id="photo-button" class="action-button flex-1 min-w-[120px] sm:min-w-0 flex items-center justify-center p-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-500 disabled:opacity-50" title="Upload Photo">
+                <i data-lucide="camera" class="w-5 h-5 mr-2"></i> 
+                Photo
+            </button>
+            <input type="file" id="photo-input" accept="image/*" class="hidden">
 
-        /**
-         * Main application component for the Daily Multi-Media Log.
-         */
-        const App = () => {
-          // Access all external dependencies safely *inside* the component
-          const firebase = window.firebase || {};
-          const lucide = window.lucide || {};
-          
-          // Safely destructure Firebase functions and Lucide Icons (Added Camera and Video)
-          const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } = firebase;
-          // Added Globe icon for translation selector
-          const { Mic, Save, Loader, XCircle, List, User, Tag, Camera, Video, AlertTriangle, Globe } = lucide; 
+            <!-- Video Upload Button -->
+            <button id="video-button" class="action-button flex-1 min-w-[120px] sm:min-w-0 flex items-center justify-center p-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-500 disabled:opacity-50" title="Upload Video">
+                <i data-lucide="video" class="w-5 h-5 mr-2"></i> 
+                Video
+            </button>
+            <input type="file" id="video-input" accept="video/*" class="hidden">
 
-          const [db, setDb] = useState(null);
-          const [userId, setUserId] = useState(null);
-          const [isAuthReady, setIsAuthReady] = useState(false);
-          const [currentMode, setCurrentMode] = useState('voice'); 
+            <!-- Save Button -->
+            <button id="save-button" class="action-button w-full sm:w-auto flex-grow flex items-center justify-center p-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-500 disabled:opacity-50" disabled>
+                <i data-lucide="save" class="w-5 h-5 mr-2"></i> 
+                Save Log
+            </button>
+        </div>
+        
+        <!-- Placeholder for media preview -->
+        <div id="media-preview" class="mt-4 p-3 border border-slate-600 rounded-xl hidden">
+            <h3 class="text-sm font-medium mb-2 text-secondary-text">Media Attached:</h3>
+            <!-- Content will be injected here -->
+        </div>
+    </section>
 
-          const [logEntries, setLogEntries] = useState([]);
-          const [dictatedText, setDictatedText] = useState('');
-          const [isRecording, setIsRecording] = useState(false);
-          const [isSaving, setIsSaving] = useState(false); 
-          const [error, setError] = useState(null);
-          const [statusMessage, setStatusMessage] = useState('Initializing application...');
-          
-          const [currentProject, setCurrentProject] = useState(PROJECT_OPTIONS[0]);
-          // This state controls whether to perform the translation and save the result
-          const [translationPreference, setTranslationPreference] = useState('Spanish'); 
+    <!-- Log History Section -->
+    <section class="log-card p-6 rounded-xl shadow-2xl">
+        <h2 class="text-2xl font-semibold mb-4 text-indigo-300">Log History</h2>
+        <div id="log-history" class="space-y-4">
+            <p id="loading-logs" class="text-center text-secondary-text">Loading logs...</p>
+        </div>
+    </section>
+</div>
 
-          const recognitionRef = useRef(null);
-          
-          // Fallback check for missing dependencies
-          if (!initializeApp || !Mic || !Camera) { 
-             return (
-                 <div className="min-h-screen p-4 sm:p-8 font-sans">
-                     <div className="flex justify-center items-center p-8 bg-white rounded-xl shadow-lg mt-4">
-                         {/* Using raw SVG as fallback */}
-                         <svg className="animate-spin h-6 w-6 text-indigo-500 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                         <span className="text-gray-600 font-medium">Loading application resources. Please wait...</span>
-                     </div>
-                 </div>
-             );
-          }
-          
-          // --- Gemini API Translation Utility ---
-          const translateTextWithGemini = async (text, targetLang) => {
-              const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-              const userQuery = `Translate the following text into ${targetLang}. Only return the translated text. Text: "${text}"`;
+<!-- Firebase SDK Imports (MUST be type="module") -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, query, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-              const payload = {
-                  contents: [{ parts: [{ text: userQuery }] }],
-                  systemInstruction: {
-                      parts: [{ text: `You are an expert, professional translator. Your sole purpose is to provide the exact translation requested without any extra commentary or introductory phrases.` }]
-                  },
-              };
+    // --- Global Variables (Provided by Canvas Environment) ---
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+    
+    // --- State and DOM Elements ---
+    let db, auth, userId = null;
+    let isAuthReady = false;
+    let currentMedia = null; // Stores { type: 'image'/'video', data: base64_string }
+    let isRecording = false;
 
-              let lastError = null;
-              // Implement exponential backoff for retries
-              for (let i = 0; i < 3; i++) {
-                  try {
-                      const response = await fetch(apiUrl, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify(payload)
-                      });
+    const logTextEl = document.getElementById('log-text');
+    const saveButtonEl = document.getElementById('save-button');
+    const voiceButtonEl = document.getElementById('voice-button');
+    const photoButtonEl = document.getElementById('photo-button');
+    const photoInputEl = document.getElementById('photo-input');
+    const videoButtonEl = document.getElementById('video-button');
+    const videoInputEl = document.getElementById('video-input');
+    const logHistoryEl = document.getElementById('log-history');
+    const mediaPreviewEl = document.getElementById('media-preview');
+    const userStatusEl = document.getElementById('user-status');
+    const voiceLabelEl = document.getElementById('voice-label');
+    const errorEl = document.getElementById('error-message');
+    const statusEl = document.getElementById('status-message');
+    
+    // --- Utility Functions ---
 
-                      if (!response.ok) {
-                          const errorBody = await response.json();
-                          throw new Error(`API returned status ${response.status}: ${errorBody.error?.message}`);
-                      }
+    const showMessage = (element, message, isError = false) => {
+        element.textContent = message;
+        element.classList.remove('hidden');
+        if (isError) {
+            element.classList.add('bg-red-900', 'text-red-300');
+            element.classList.remove('bg-indigo-900', 'text-indigo-300');
+        } else {
+            element.classList.add('bg-indigo-900', 'text-indigo-300');
+            element.classList.remove('bg-red-900', 'text-red-300');
+        }
+        setTimeout(() => element.classList.add('hidden'), 5000);
+    };
 
-                      const result = await response.json();
-                      const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    const setError = (message) => showMessage(errorEl, message, true);
+    const setStatus = (message) => showMessage(statusEl, message, false);
 
-                      if (translatedText) {
-                          return translatedText;
-                      } else {
-                          // Handle cases where API response is structurally fine but content is missing
-                          throw new Error("API returned an empty or malformed response for translation.");
-                      }
-                  } catch (e) {
-                      lastError = e;
-                      console.warn(`Translation attempt ${i + 1} failed. Retrying in ${Math.pow(2, i)}s...`, e);
-                      if (i < 2) { 
-                          await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-                      }
-                  }
-              }
+    const checkSaveEnablement = () => {
+        const hasText = logTextEl.value.trim().length > 0;
+        const hasMedia = currentMedia !== null;
+        saveButtonEl.disabled = !(hasText || hasMedia);
+    };
 
-              console.error("All translation attempts failed.", lastError);
-              throw new Error("Failed to translate text after multiple attempts.");
-          };
+    const getFirestorePath = (collectionName, docId) => {
+        const base = `/artifacts/${appId}/users/${userId}/${collectionName}`;
+        // Using doc(db, path, id) if docId is provided, otherwise collection(db, path)
+        return docId ? doc(db, base, docId) : collection(db, base);
+    };
+    
+    // --- Firebase Setup ---
+    const initializeFirebase = async () => {
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
 
-
-          // --- 1. Firebase Initialization and Authentication (Unchanged) ---
-          useEffect(() => {
-            if (!firebaseConfig) {
-              setError('Firebase configuration is missing.');
-              return;
-            }
-
-            try {
-              const app = initializeApp(firebaseConfig);
-              const authInstance = getAuth(app);
-              const dbInstance = getFirestore(app);
-
-              setDb(dbInstance);
-
-              const authenticate = async () => {
-                try {
-                  if (initialAuthToken) {
-                    await signInWithCustomToken(authInstance, initialAuthToken);
-                  } else {
-                    await signInAnonymously(authInstance);
-                  }
-                } catch(e) {
-                     console.error("Authentication failed, falling back to anonymous sign-in:", e);
-                     await signInAnonymously(authInstance);
-                }
-              };
-
-              const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+            // Authentication Listener
+            onAuthStateChanged(auth, async (user) => {
                 if (user) {
-                  setUserId(user.uid);
-                  setStatusMessage(`Authentication successful. User ID: ${user.uid}. Ready to log.`);
+                    userId = user.uid;
+                } else if (!user && initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (e) {
+                        console.error("Custom token sign-in failed, falling back to anonymous:", e);
+                        await signInAnonymously(auth);
+                    }
                 } else {
-                  setUserId(null); 
-                  setStatusMessage('Waiting for authentication to resolve...');
+                    await signInAnonymously(auth);
                 }
-                setIsAuthReady(true);
-              });
-
-              authenticate();
-              return () => unsubscribe();
-            } catch (e) {
-              console.error("Firebase Initialization Error:", e);
-              setError('Failed to initialize Firebase.');
-            }
-          }, []);
-
-          // --- 2. Firestore Listener for Real-Time Log Entries (Unchanged) ---
-          useEffect(() => {
-            if (!isAuthReady || !db || !userId) return;
-
-            const logsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'daily_logs');
-            const q = query(logsCollectionRef);
-
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-              const entries = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt ? doc.data().createdAt.toDate() : new Date(),
-              })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); 
-
-              setLogEntries(entries);
-              setStatusMessage(`Found ${entries.length} log entries.`);
-            }, (e) => {
-              console.error("Firestore Snapshot Error:", e);
-              setError("Failed to fetch log entries from Firestore.");
+                
+                userId = auth.currentUser?.uid || 'anonymous';
+                isAuthReady = true;
+                userStatusEl.textContent = `User ID: ${userId}`;
+                
+                setupLogListener();
             });
 
-            return () => unsubscribe();
-          }, [isAuthReady, db, userId]);
+        } catch (e) {
+            console.error("Firebase initialization failed:", e);
+            setError("Failed to initialize the database.");
+        }
+    };
+    
+    // --- Real-time Log Listener ---
+    const setupLogListener = () => {
+        if (!db || !userId) return;
 
-          // --- 3. Save Function (Updated to save both English and Spanish) ---
-          const saveDictatedText = async () => {
-            if (isSaving) return; 
-
-            const dictatedContent = dictatedText.trim();
-
-            if (!dictatedContent || !db || !userId) {
-                setStatusMessage('Error: Dictation pad is empty or not authenticated.');
+        const q = query(getFirestorePath('daily_logs'));
+        
+        onSnapshot(q, (snapshot) => {
+            logHistoryEl.innerHTML = '';
+            
+            if (snapshot.empty) {
+                logHistoryEl.innerHTML = '<p class="text-center text-secondary-text p-4">No logs yet. Start documenting your day!</p>';
+                document.getElementById('loading-logs')?.remove();
                 return;
             }
 
-            if (isRecording) stopDictation();
+            snapshot.docs
+                .map(doc => ({ id: doc.id, ...doc.data() }))
+                // Sort by timestamp descending
+                .sort((a, b) => (b.timestamp?.toDate() || 0) - (a.timestamp?.toDate() || 0))
+                .forEach(entry => {
+                    logHistoryEl.appendChild(createLogElement(entry));
+                });
             
-            setIsSaving(true);
-            setError(null);
+            // Re-render Lucide icons after DOM update
+            lucide.createIcons();
+        }, (error) => {
+            console.error("Error fetching logs:", error);
+            setError("Failed to load log history in real-time.");
+        });
+    };
+
+    // --- DOM Creation for Log Entry ---
+    const createLogElement = (entry) => {
+        const date = entry.timestamp ? entry.timestamp.toDate().toLocaleString() : 'Saving...';
+        
+        const div = document.createElement('div');
+        div.className = 'p-4 log-card rounded-xl shadow-lg border border-slate-700';
+        
+        let mediaHtml = '';
+        if (entry.media) {
+            const mediaType = entry.media.type;
+            const mediaData = entry.media.data;
             
-            let spanishText = null;
-
-            try {
-                // Only perform translation if Spanish is the preferred language
-                if (translationPreference === 'Spanish') {
-                    setStatusMessage(`Translating text to Spanish before saving...`);
-                    const translated = await translateTextWithGemini(dictatedContent, 'Spanish');
-                    spanishText = translated;
-                    setStatusMessage(`Translation complete. Saving entry in English and Spanish...`);
-                }
-
-                const logsCollectionRef = collection(db, 'artifacts', appId, 'users', userId, 'daily_logs');
-
-                // Save both the original English text and the generated Spanish translation
-                const logData = {
-                    englishText: dictatedContent, // The primary log (English dictation)
-                    spanishText: spanishText,     // The generated translation
-                    project: currentProject,
-                    logType: 'voice', 
-                    translationPreference: translationPreference, // Save the preference for context
-                    createdAt: serverTimestamp(),
-                };
-
-                await addDoc(logsCollectionRef, logData);
-                
-                setDictatedText('');
-                setStatusMessage(`Voice entry saved successfully in English ${spanishText ? 'and Spanish' : ''} under the '${currentProject}' project!`);
-
-            } catch (e) {
-                console.error('Error during save or translation:', e);
-                setError(`Could not save the entry (Error: ${e.message}). The English text was not saved.`);
-                setStatusMessage('Error during save process.');
-            } finally {
-                setIsSaving(false);
+            // Note: Data is stored without the mime prefix, so we add it back here
+            if (mediaType === 'image') {
+                mediaHtml = `<img src="data:image/jpeg;base64,${mediaData}" alt="Logged Image" class="w-full h-auto max-h-60 object-contain rounded-lg mt-3 border border-slate-600">`;
+            } else if (mediaType === 'video') {
+                mediaHtml = `<video controls src="data:video/mp4;base64,${mediaData}" class="w-full h-auto max-h-60 object-contain rounded-lg mt-3 border border-slate-600">Video Log</video>`;
+            } else if (mediaType === 'audio') {
+                // Assuming voice recording, though currently only dictation-to-text is implemented
+                mediaHtml = `<audio controls src="data:audio/wav;base64,${mediaData}" class="w-full mt-3">Audio Log</audio>`;
             }
-          };
-          
-          // --- 4. Stop Dictation Function (Unchanged) ---
-          const stopDictation = () => {
-              if (recognitionRef.current) {
-                  recognitionRef.current.stop();
-              }
-              setIsRecording(false);
-              setStatusMessage('Dictation stopped. Review and save the transcript.');
-          };
+        }
 
-          // --- 5. Start Dictation Function (Unchanged - Always records in English) ---
-          const startDictation = () => {
-            if (!isSpeechRecognitionSupported) {
-              setError('Your browser does not support the Web Speech API.');
-              return;
-            }
-            if (isRecording) return; 
+        div.innerHTML = `
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-medium text-indigo-400 flex items-center">
+                    <i data-lucide="calendar" class="w-3 h-3 mr-1"></i> ${date}
+                </span>
+                <button class="delete-log text-red-500 hover:text-red-400 transition-colors" data-id="${entry.id}" title="Delete Log">
+                     <i data-lucide="trash-2" class="w-4 h-4"></i> 
+                </button>
+            </div>
+            <p class="text-sm whitespace-pre-wrap">${entry.text || 'No text recorded.'}</p>
+            ${mediaHtml}
+        `;
+        
+        // Add delete listener (must be done after element creation)
+        const deleteButton = div.querySelector('.delete-log');
+        if(deleteButton) {
+            deleteButton.addEventListener('click', () => handleDeleteLog(entry.id));
+        }
 
-            if (recognitionRef.current) recognitionRef.current.stop();
+        return div;
+    };
+    
+    // --- Log Saving Function ---
+    const handleSaveLog = async () => {
+        if (!db || !userId || saveButtonEl.disabled) return;
 
-            const recognition = new SpeechRecognition();
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.lang = 'en-US'; // Always recognize in English 
+        const text = logTextEl.value.trim();
+        if (!text && !currentMedia) {
+            setError("Log must contain text or media.");
+            return;
+        }
 
-            recognition.onstart = () => {
-              setIsRecording(true);
-              setError(null);
-              setStatusMessage('LISTENING (English): Speak clearly now! Click the red button to stop.');
+        setStatus("Saving log entry...");
+        saveButtonEl.disabled = true;
+
+        try {
+            const logData = {
+                text: text,
+                media: currentMedia, // currentMedia is null if no media attached
+                timestamp: serverTimestamp(),
             };
 
-            recognition.onresult = (event) => {
-              let interimTranscript = '';
-              let finalTranscript = '';
+            // Use setDoc with no document ID to let Firestore auto-generate one for a new document
+            await setDoc(doc(getFirestorePath('daily_logs')), logData);
 
-              for (let i = event.resultIndex; i < event.results.length; ++i) {
+            // Clear state on success
+            logTextEl.value = '';
+            currentMedia = null;
+            clearMediaPreview();
+            setStatus("Log saved successfully!");
+        } catch (e) {
+            console.error("Error saving log:", e);
+            setError("Failed to save log entry. See console for details.");
+        } finally {
+            saveButtonEl.disabled = false;
+            checkSaveEnablement();
+        }
+    };
+    
+    // --- Log Deletion Function ---
+    const handleDeleteLog = async (docId) => {
+        if (!db || !userId) return;
+        
+        setStatus("Deleting log...");
+        
+        try {
+            // deleteDoc takes the document reference
+            await deleteDoc(getFirestorePath('daily_logs', docId));
+            setStatus("Log deleted.");
+        } catch (e) {
+            console.error("Error deleting log:", e);
+            setError("Failed to delete log entry.");
+        }
+    };
+
+    // --- Media Input Handlers ---
+    
+    const clearMediaPreview = () => {
+        currentMedia = null;
+        mediaPreviewEl.classList.add('hidden');
+        mediaPreviewEl.innerHTML = '<h3 class="text-sm font-medium mb-2 text-secondary-text">Media Attached:</h3>';
+        checkSaveEnablement();
+    };
+
+    const handleMediaChange = (event, type) => {
+        const file = event.target.files[0];
+        if (!file) {
+            clearMediaPreview();
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            // Store the raw base64 data for Firestore
+            // We strip the mime-type prefix from the base64 string before storing
+            const base64Data = reader.result.split(',')[1];
+            currentMedia = { type: type, data: base64Data };
+
+            // Update Preview
+            mediaPreviewEl.classList.remove('hidden');
+            if (type === 'image') {
+                mediaPreviewEl.innerHTML = `<h3 class="text-sm font-medium mb-2 text-secondary-text">Photo Attached:</h3><img src="${reader.result}" class="w-full h-auto max-h-40 object-contain rounded-lg">`;
+            } else if (type === 'video') {
+                mediaPreviewEl.innerHTML = `<h3 class="text-sm font-medium mb-2 text-secondary-text">Video Attached:</h3><video controls src="${reader.result}" class="w-full h-auto max-h-40 object-contain rounded-lg">`;
+            }
+
+            checkSaveEnablement();
+            setStatus(`${type.charAt(0).toUpperCase() + type.slice(1)} attached successfully. Ready to save!`);
+        };
+        
+        // Convert file to base64
+        reader.readAsDataURL(file);
+    };
+
+    // --- Voice Dictation Handler (Uses Web Speech API) ---
+    const setupVoiceDictation = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+        if (!SpeechRecognition) {
+            voiceButtonEl.disabled = true;
+            voiceButtonEl.innerHTML = '<i data-lucide="volume-x" class="w-5 h-5 mr-2"></i> Voice Not Supported';
+            setError("Your browser does not support Web Speech API (Voice Dictation).");
+            lucide.createIcons();
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        const setRecordingState = (recording) => {
+            isRecording = recording;
+            voiceLabelEl.textContent = recording ? 'Stop Recording' : 'Start Voice';
+            
+            // Handle UI changes
+            if (recording) {
+                voiceButtonEl.classList.add('voice-recording', 'bg-red-700');
+                voiceButtonEl.classList.remove('bg-red-600');
+            } else {
+                voiceButtonEl.classList.remove('voice-recording', 'bg-red-700');
+                voiceButtonEl.classList.add('bg-red-600');
+            }
+            
+            // Update the Lucide icon
+            const iconElement = voiceButtonEl.querySelector('i');
+            if (iconElement) {
+                iconElement.setAttribute('data-lucide', recording ? 'square' : 'mic'); 
+                lucide.createIcons(); 
+            }
+        };
+
+        recognition.onstart = () => {
+            setRecordingState(true);
+            setStatus("Listening... start speaking now.");
+        };
+
+        recognition.onresult = (event) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
-                  finalTranscript += transcript + ' ';
+                    finalTranscript += transcript + ' ';
                 } else {
-                  interimTranscript += transcript;
+                    interimTranscript += transcript;
                 }
-              }
-
-              const newText = (dictatedText + ' ' + finalTranscript + interimTranscript).trim();
-              setDictatedText(newText);
-            };
-
-            recognition.onerror = (event) => {
-              console.error('Speech Recognition Error:', event.error);
-              setError(`Dictation Error: ${event.error}. Try again.`);
-              setIsRecording(false);
-            };
-
-            recognition.onend = () => {
-              setIsRecording(false);
-              setStatusMessage('Dictation session ended. Review and save the transcript.');
-            };
-            
-            recognitionRef.current = recognition; 
-            recognition.start(); 
-          };
-          
-          // Toggles between start and stop dictation
-          const handleDictationToggle = () => {
-              if (isRecording) {
-                  stopDictation();
-              } else {
-                  startDictation();
-              }
-          };
-          
-          // Placeholder component for unimplemented features
-          const PlaceholderCard = useMemo(() => ({ mode }) => (
-            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl mb-8 border border-gray-100 text-center">
-                <AlertTriangle className="w-10 h-10 text-yellow-500 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold mb-2 text-gray-700">{mode === 'photo' ? 'Photo Note' : 'Video Memo'} Feature</h2>
-                <p className="text-gray-500">
-                    This feature is currently under development. Switch back to **Voice Dictation** to start logging immediately!
-                </p>
-            </div>
-          ), []);
-          
-          // Voice Dictation Card Component (for clean conditional rendering)
-          const VoiceEntryCard = useMemo(() => () => (
-            <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl mb-8 border border-gray-100">
-                <h2 className="text-xl font-semibold mb-4 text-gray-700">New Voice Log Entry (Dictate in English)</h2>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                    {/* Project Selector */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-500 mb-1 flex items-center">
-                            <Tag className="w-4 h-4 mr-1" /> Project/Tag
-                        </label>
-                        <select
-                            value={currentProject}
-                            onChange={(e) => setCurrentProject(e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                        >
-                            {PROJECT_OPTIONS.map(proj => (
-                                <option key={proj} value={proj}>{proj}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Language Selector - Now indicates which translation will be generated and saved */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-500 mb-1 flex items-center">
-                            <Globe className="w-4 h-4 mr-1" /> Generate Translation
-                        </label>
-                        <select
-                            value={translationPreference}
-                            onChange={(e) => setTranslationPreference(e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150"
-                        >
-                            <option value="English">None (Save English Only)</option>
-                            <option value="Spanish">Spanish (Save Both Languages)</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Dictation Area */}
-                <textarea
-                    value={dictatedText}
-                    onChange={(e) => setDictatedText(e.target.value)}
-                    placeholder={isSpeechRecognitionSupported ? "Start speaking (in English) after clicking the microphone..." : "Speech recognition is not supported in this browser. Type your log here."}
-                    className="w-full h-32 p-3 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150 resize-none text-gray-800"
-                    disabled={isRecording || isSaving}
-                />
-
-                {/* Controls */}
-                <div className="mt-4 flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0 sm:space-x-4">
-                    
-                    {/* Dictation Button */}
-                    {isSpeechRecognitionSupported && (
-                         <button
-                            onClick={handleDictationToggle}
-                            className={`flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-full text-white font-semibold transition duration-200 transform hover:scale-105 shadow-lg bg-red-500 hover:bg-red-600 disabled:bg-red-300 ${isRecording ? 'dictation-button-active' : ''}`}
-                            disabled={!isAuthReady || isSaving}
-                        >
-                            {isRecording ? (
-                                <>
-                                    <Loader className="w-5 h-5 mr-3 animate-spin" />
-                                    STOP RECORDING
-                                </>
-                            ) : (
-                                <>
-                                    <Mic className="w-5 h-5 mr-3" />
-                                    START DICTATION
-                                </>
-                            )}
-                        </button>
-                    )}
-                    
-                    {/* Save Button */}
-                    <button
-                        onClick={saveDictatedText}
-                        className="flex items-center justify-center w-full sm:w-auto px-6 py-3 rounded-full bg-green-500 text-white font-semibold transition duration-200 transform hover:scale-105 shadow-lg disabled:bg-gray-400 disabled:shadow-none"
-                        disabled={!dictatedText.trim() || !isAuthReady || isRecording || isSaving}
-                    >
-                        {isSaving ? (
-                            <>
-                                <Loader className="w-5 h-5 mr-3 animate-spin" />
-                                {translationPreference === 'Spanish' ? 'TRANSLATING & SAVING...' : 'SAVING...'}
-                            </>
-                        ) : (
-                            <>
-                                <Save className="w-5 h-5 mr-3" />
-                                SAVE VOICE ENTRY
-                            </>
-                        )}
-                    </button>
-                </div>
-            </div>
-          ), [isRecording, dictatedText, currentProject, translationPreference, isAuthReady, isSaving, handleDictationToggle, saveDictatedText]);
-
-
-          // --- UI Rendering ---
-          return (
-            <div className="min-h-screen p-4 sm:p-8 font-sans bg-gray-50">
-              <div className="max-w-4xl mx-auto">
-                
-                {/* Header */}
-                <header className="py-4 mb-6 border-b border-indigo-100">
-                    <h1 className="text-3xl font-bold text-indigo-700 flex items-center">
-                        <List className="mr-3 h-7 w-7" />
-                        Daily Log
-                    </h1>
-                    <p className="text-sm text-gray-500 mt-1 flex items-center">
-                        <User className="w-4 h-4 mr-1"/> User ID: <code className="ml-2 font-mono text-xs p-1 bg-indigo-50 text-indigo-800 rounded">{userId || 'Loading...'}</code>
-                    </p>
-                </header>
-
-                {/* Status/Error Messages */}
-                {error && (
-                  <div className="p-3 mb-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center">
-                    <XCircle className="w-5 h-5 mr-2"/>
-                    {error}
-                  </div>
-                )}
-                {statusMessage && !error && (
-                    <div className="p-3 mb-6 bg-indigo-50 text-indigo-600 rounded-lg text-sm">
-                        {statusMessage}
-                    </div>
-                )}
-                
-                {/* Mode Selector - Restored Photo, Video, and Voice Icons */}
-                <div className="flex flex-col sm:flex-row space-y-3 sm:space-y-0 sm:space-x-4 mb-8">
-                    <ModeButton mode="voice" icon={Mic} label="Voice Dictation" currentMode={currentMode} onClick={setCurrentMode} />
-                    <ModeButton mode="photo" icon={Camera} label="Photo Note" currentMode={currentMode} onClick={setCurrentMode} />
-                    <ModeButton mode="video" icon={Video} label="Video Memo" currentMode={currentMode} onClick={setCurrentMode} />
-                </div>
-                
-                {/* Dynamic Log Input Card */}
-                {currentMode === 'voice' && <VoiceEntryCard />}
-                {currentMode === 'photo' && <PlaceholderCard mode="photo" />}
-                {currentMode === 'video' && <PlaceholderCard mode="video" />}
-
-                {/* Log History */}
-                <div className="bg-white p-6 md:p-8 rounded-2xl shadow-xl border border-gray-100">
-                    <h2 className="text-xl font-semibold text-gray-700 mb-6">Log History ({logEntries.length})</h2>
-                    
-                    {logEntries.length === 0 ? (
-                        <p className="text-center text-gray-500 p-8 border-2 border-dashed border-gray-200 rounded-xl">
-                            No log entries found yet. Start dictating and save your first entry!
-                        </p>
-                    ) : (
-                        <div className="space-y-4">
-                            {logEntries.map((entry) => (
-                                <div key={entry.id} className="log-entry p-4 border border-gray-200 rounded-xl bg-gray-50 hover:shadow-md transition">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-3">
-                                            <span className={`inline-block text-xs font-medium px-3 py-1 rounded-full ${entry.logType === 'voice' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-700'}`}>
-                                                {entry.project} (English Original)
-                                            </span>
-                                            {/* Show translation preference tag if it was set to Spanish */}
-                                            {entry.translationPreference === 'Spanish' && (
-                                                <span className={`inline-block text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700`}>
-                                                    <Globe className="w-3 h-3 mr-1 inline-block"/> Spanish Translation Saved
-                                                </span>
-                                            )}
-                                        </div>
-                                        <time className="text-xs text-gray-500">
-                                            {entry.createdAt.toLocaleString()}
-                                        </time>
-                                    </div>
-                                    
-                                    {/* PRD Requirement 1: Display original English text (now called englishText) */}
-                                    <p className="text-gray-800 whitespace-pre-wrap font-medium border-b border-gray-300 pb-2 mb-2">
-                                        {entry.englishText}
-                                    </p>
-
-                                    {/* PRD Requirement 2: Display Spanish translation below it, smaller and italicized */}
-                                    {entry.spanishText && (
-                                        <p className="text-sm text-gray-500 whitespace-pre-wrap italic">
-                                            **Spanish Translation:** {entry.spanishText}
-                                        </p>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-              </div>
-            </div>
-          );
-        };
-
-        // --- Polling and Initialization Script (Unchanged) ---
-        const mountApp = () => {
-            const isFirebaseLoaded = !!window.firebase;
-            const isLucideReady = !!(window.lucide && window.lucide.Mic && window.lucide.Camera && window.lucide.Globe);
-            
-            if (isFirebaseLoaded && isLucideReady) {
-                 console.log("Dependencies loaded. Mounting React App.");
-                 const container = document.getElementById('root');
-                 if (container) {
-                     const root = createRoot(container);
-                     root.render(<App />);
-                 }
-                 return true; // Success
             }
-            console.log("Waiting for dependencies. Firebase:", isFirebaseLoaded, "Lucide Ready:", isLucideReady);
-            return false; // Still waiting
+            // Append the final result to the existing text area content
+            logTextEl.value += finalTranscript;
+            checkSaveEnablement();
         };
 
-        const pollDependencies = () => {
-            const maxAttempts = 50;
-            let attempts = 0;
-            const intervalTime = 100; 
-            
-            const interval = setInterval(() => {
-                if (mountApp() || attempts >= maxAttempts) {
-                    clearInterval(interval);
-                    if (attempts >= maxAttempts) {
-                        console.error("Failed to load all dependencies after max attempts.");
-                        document.getElementById('root').innerHTML = '<div class="flex justify-center items-center h-40 text-red-500 font-bold">Error: Could not load required application files. Please refresh.</div>';
+        recognition.onend = () => {
+            // Called when recognition stops, either naturally or via recognition.stop()
+            setRecordingState(false);
+            setStatus("Voice dictation stopped.");
+        };
+
+        recognition.onerror = (event) => {
+            setRecordingState(false);
+            setError(`Voice Error: ${event.error}. Please ensure microphone access is granted in your browser settings or a security popup.`);
+        };
+        
+        // This is the main button click handler
+        voiceButtonEl.addEventListener('click', () => {
+            if (isRecording) {
+                // If currently recording, stop it. This triggers onend.
+                recognition.stop();
+            } else {
+                // If not recording, start it. This triggers onstart.
+                try {
+                    recognition.start();
+                } catch(e) {
+                    if (e.name === 'InvalidStateError') {
+                        setStatus("Already attempting to listen...");
+                    } else {
+                        console.error("Recognition start failed:", e);
+                        setError("Could not start microphone. Check permissions or try another browser.");
                     }
                 }
-                attempts++;
-            }, intervalTime);
-        };
+            }
+        });
+    };
 
-        window.onload = pollDependencies;
+    // --- Event Listeners and Initial Load ---
+    window.onload = () => {
+        // Initialize Firebase on load
+        initializeFirebase(); 
 
-    </script>
+        // Initial check for save button status
+        logTextEl.addEventListener('input', checkSaveEnablement);
+        saveButtonEl.addEventListener('click', handleSaveLog);
+        
+        // Setup Media Inputs
+        photoButtonEl.addEventListener('click', () => photoInputEl.click());
+        photoInputEl.addEventListener('change', (e) => handleMediaChange(e, 'image'));
+
+        videoButtonEl.addEventListener('click', () => videoInputEl.click());
+        videoInputEl.addEventListener('change', (e) => handleMediaChange(e, 'video'));
+
+        // Setup Voice Dictation
+        setupVoiceDictation();
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+    };
+
+</script>
 </body>
 </html>
