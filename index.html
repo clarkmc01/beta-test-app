@@ -147,7 +147,7 @@
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, serverTimestamp, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"; // <-- ADDED getDoc HERE
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, serverTimestamp, deleteDoc, addDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     // --- Global Variables (Provided by Canvas Environment) ---
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -390,7 +390,6 @@
                 console.log("Default project already exists.");
             }
         } catch (e) {
-            // This will now catch errors if getDoc is not defined, but since we imported it, it should be fine.
             console.error("Error ensuring test project exists:", e);
         }
     };
@@ -419,24 +418,27 @@
 
         // Auth state observer (runs once on sign-in/sign-out)
         onAuthStateChanged(auth, (user) => {
-            if (user) {
-                userId = user.uid;
-                userStatusEl.textContent = `User ID: ${userId}`;
-                isAuthReady = true;
-                
-                // 1. Ensure a default project is available
-                ensureTestProjectExists();
+            (async () => { // <--- IIFE to allow use of await
+                if (user) {
+                    userId = user.uid;
+                    userStatusEl.textContent = `User ID: ${userId}`;
+                    isAuthReady = true;
+                    
+                    // 1. AWAIT the project creation check/creation
+                    await ensureTestProjectExists();
 
-                // 2. Start listening to data
-                listenToProjects();
-                listenToLogs();
-            } else {
-                userStatusEl.textContent = `User ID: Unauthorized (using a temporary ID)`;
-                userId = crypto.randomUUID();
-                isAuthReady = true;
-                // Since this is a temporary/unauthenticated user, we'll only allow anonymous actions if rules permit.
-                // For this scenario, we rely on the `__initial_auth_token` for proper authentication flow.
-            }
+                    // 2. Start listening to data now that the default project is guaranteed to exist
+                    listenToProjects();
+                    listenToLogs();
+                } else {
+                    userStatusEl.textContent = `User ID: Unauthorized (using a temporary ID)`;
+                    userId = crypto.randomUUID();
+                    isAuthReady = true;
+                    // If not authenticated, we still start listeners, but they might be limited by security rules
+                    listenToProjects();
+                    listenToLogs();
+                }
+            })();
         });
     };
 
@@ -449,6 +451,8 @@
 
         onSnapshot(q, (snapshot) => {
             projects = {};
+            // Start with a clean list, but keep the initial prompt visible if no projects are found
+            const currentSelectedValue = projectSelectEl.value;
             projectSelectEl.innerHTML = '<option value="" disabled selected>Select a Project</option>';
             
             snapshot.forEach((doc) => {
@@ -460,10 +464,19 @@
                 projectSelectEl.appendChild(option);
             });
             
-            // Auto-select the default project if available and nothing is selected
-            const defaultId = Object.keys(projects).find(id => projects[id] === "My First Log Project");
-            if (defaultId && !projectSelectEl.value) {
-                projectSelectEl.value = defaultId;
+            // Re-select the previously selected project or auto-select the default
+            if (currentSelectedValue && projects[currentSelectedValue]) {
+                projectSelectEl.value = currentSelectedValue;
+            } else {
+                const defaultId = Object.keys(projects).find(id => projects[id] === "My First Log Project");
+                if (defaultId) {
+                    projectSelectEl.value = defaultId;
+                }
+            }
+
+            // If projects are loaded but none is selected (shouldn't happen with the default project logic)
+            if (projectSelectEl.value === '') {
+                 projectSelectEl.querySelector('option[disabled]').selected = true;
             }
             
             checkSaveEnablement(); // Re-check if projects are loaded
@@ -515,7 +528,8 @@
         const card = document.createElement('div');
         card.className = 'p-4 bg-gray-50 rounded-lg shadow-inner border border-gray-200';
         
-        const projectName = projects[log.projectId] || 'Unknown Project';
+        // Use a null check for log.projectId as projects might still be loading initially
+        const projectName = log.projectId ? projects[log.projectId] || 'Unknown Project' : 'No Project';
 
         let mediaContent = '';
         if (log.media && log.media.data) { // Ensure media data exists
