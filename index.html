@@ -22,7 +22,7 @@
 
         @keyframes pulse-red {
             0%, 100% {
-                box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); /* Standard Red Pulse */
+                box-shadow: 0 0 0 0 rgba(220, 33, 33, 0.7); /* Standard Red Pulse */
             }
             50% {
                 box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
@@ -93,9 +93,9 @@
         <!-- Translation Output Area -->
         <div id="translation-output" class="hidden mt-4 p-3 bg-gray-100 border border-gray-300 rounded-md">
             <h3 class="text-sm font-semibold mb-1 text-gray-700 flex items-center">
-                <i data-lucide="languages" class="w-4 h-4 mr-1"></i> Translation/Summary:
+                <i data-lucide="languages" class="w-4 h-4 mr-1"></i> AI Analysis:
             </h3>
-            <p id="translation-text" class="text-sm text-gray-800"></p>
+            <p id="translation-text" class="text-sm text-gray-800">Start typing to see an automatic translation/summary.</p>
         </div>
         
         <!-- Media Preview Area -->
@@ -284,6 +284,13 @@
         const file = event.target.files[0];
         if (!file) return;
 
+        // Check file size (e.g., limit to 1MB which is 1024 * 1024 bytes) for Firestore document safety
+        if (file.size > 1024 * 1024) {
+             setError('File size too large. Please select a file under 1MB.');
+             event.target.value = null; // Clear the input
+             return;
+        }
+
         const reader = new FileReader();
         reader.onload = () => {
             currentMedia = {
@@ -361,7 +368,7 @@
     };
 
     const translateAndSummarize = async (text) => {
-        if (!text || text.length === 0) return;
+        if (!text || text.length < 50) return; // Only call AI if a substantial amount of text is entered
         
         const prompt = `Analyze the following user log entry. If the text is in a language other than English, translate it to clear, professional English. If the text is already English, provide a one-sentence, concise summary. 
         
@@ -393,10 +400,118 @@
             }
         } catch (error) {
             console.error('Gemini API call failed:', error);
-            // Only show a temporary error message, don't clear existing text
-            // setError('Failed to get analysis/translation from AI service.');
+            // Don't show an error to the user for this background process, just keep the "Analyzing..." message
         }
     };
+
+    // --- Debounce Utility ---
+    let debounceTimer;
+    const debounce = (func, delay) => {
+        return (...args) => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                func.apply(this, args);
+            }, delay);
+        };
+    };
+    
+    // Debounced function to call AI translation
+    const debouncedTranslate = debounce(() => {
+        const text = logTextEl.value.trim();
+        if (text.length > 50) { // Only call AI if a substantial amount of text is entered
+            translationTextEl.textContent = 'Analyzing and summarizing...';
+            translationOutputEl.classList.remove('hidden');
+            translateAndSummarize(text);
+        } else {
+            translationOutputEl.classList.add('hidden');
+        }
+    }, 1500); // 1.5 second debounce
+
+
+    // --- Voice Dictation Logic ---
+    
+    const setupVoiceRecognition = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            setError("Speech recognition not supported in this browser. Please use a text log.");
+            voiceButtonEl.disabled = true;
+            voiceLabelEl.textContent = 'Not Supported';
+            return;
+        }
+
+        recognition = new SpeechRecognition();
+        recognition.continuous = false; // Only get one result per session
+        recognition.interimResults = true; // Show results as they are spoken
+
+        recognition.onstart = () => {
+            isRecording = true;
+            voiceLabelEl.textContent = 'Recording...';
+            voiceButtonEl.classList.add('voice-recording');
+            setStatus('Voice recording started. Speak now.');
+            logTextEl.focus();
+        };
+
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript;
+                }
+            }
+
+            if (finalTranscript) {
+                // Append final result to the log, adding a space if content exists
+                logTextEl.value += (logTextEl.value.length > 0 ? ' ' : '') + finalTranscript;
+                logTextEl.dispatchEvent(new Event('input')); // Trigger input event for checkSaveEnablement/debounce
+            }
+        };
+
+        recognition.onend = () => {
+            if (isRecording) {
+                // If recording ended normally, reset state
+                isRecording = false;
+                voiceLabelEl.textContent = 'Start Voice';
+                voiceButtonEl.classList.remove('voice-recording');
+                // Status message will only be shown if the recording was stopped manually, not automatically
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            isRecording = false;
+            voiceLabelEl.textContent = 'Error';
+            voiceButtonEl.classList.remove('voice-recording');
+            setError(`Voice input error: ${event.error}. Ensure microphone access is granted.`);
+        };
+    };
+    
+    const toggleVoiceRecognition = () => {
+        if (!recognition) {
+            setError('Voice recognition is not initialized or supported.');
+            return;
+        }
+
+        if (isRecording) {
+            // Stop recognition
+            recognition.stop();
+            isRecording = false;
+            voiceLabelEl.textContent = 'Start Voice';
+            voiceButtonEl.classList.remove('voice-recording');
+            setStatus('Voice dictation stopped.');
+        } else {
+            // Start recognition
+            try {
+                recognition.start();
+            } catch(e) {
+                console.error("Error starting recognition:", e);
+                setError("Failed to start recording. Please check microphone permissions.");
+            }
+        }
+    };
+
 
     // --- Firebase Logic (Auth, Setup, Data) ---
 
@@ -565,6 +680,7 @@
         const projectName = log.projectId ? projects[log.projectId] || 'Unknown Project' : 'No Project';
 
         let mediaContent = '';
+        let mediaSpan = '';
         if (log.media && log.media.data) { // Ensure media data exists
             const mediaType = log.media.type;
             const mediaData = log.media.data;
@@ -588,7 +704,7 @@
             }
 
             // Update the span to include the media icon
-            const mediaSpan = `<span class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-gray-800 ml-2">${mediaIcon}</span>`;
+            mediaSpan = `<span class="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-gray-800 ml-2">${mediaIcon}</span>`;
             
             card.innerHTML = `
                 <div class="flex justify-between items-start mb-2">
@@ -695,7 +811,7 @@
         if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
-    // Function to execute deletion after user confirmation
+    // Function to execute deletion after user confirmation (Completed logic)
     const executeDelete = async () => {
         const logId = modalLogIdEl.textContent;
         confirmModalEl.classList.add('hidden'); // Hide modal immediately
@@ -713,126 +829,45 @@
             setError(`Failed to delete log: ${e.message || 'Unknown error'}`);
         }
     };
-
-
-    // --- Voice Dictation Setup ---
     
-    const setupVoiceRecognition = () => {
-        // Check for browser compatibility
-        if (!('webkitSpeechRecognition' in window)) {
-            voiceButtonEl.disabled = true;
-            voiceLabelEl.textContent = 'Voice Not Supported';
-            voiceButtonEl.classList.replace('bg-red-600', 'bg-gray-400');
-            return;
-        }
-
-        recognition = new webkitSpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event) => {
-            let finalTranscript = '';
-            let interimTranscript = '';
-            
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
-            }
-            // Append final results to the textarea, replacing previous interim results
-            logTextEl.value = finalTranscript + interimTranscript;
+    // --- Initialization and Event Listeners ---
+    
+    const init = () => {
+        setupFirebase();
+        setupVoiceRecognition();
+        
+        // Core Input Listeners
+        logTextEl.addEventListener('input', () => {
             checkSaveEnablement();
-        };
-
-        recognition.onerror = (event) => {
-            console.error('Speech recognition error:', event.error);
-            setError(`Voice Error: ${event.error}. Try again.`);
-            toggleRecording(false);
-        };
-
-        recognition.onend = () => {
-            if (isRecording) {
-                // Restart if it stopped unexpectedly while recording flag is true
-                recognition.start();
-            } else {
-                 // Finalize the text after manual stop
-                 logTextEl.value = logTextEl.value.trim();
-                 checkSaveEnablement();
-            }
-        };
-    };
-
-    const toggleRecording = (start) => {
-        if (!recognition) return;
-        
-        isRecording = start;
-        
-        if (start) {
-            try {
-                recognition.start();
-                voiceLabelEl.textContent = 'Stop Recording';
-                voiceButtonEl.classList.add('voice-recording');
-                setStatus('Listening... say something!');
-            } catch (e) {
-                // Catch error if recognition is already running
-                if (e.name !== 'InvalidStateError') {
-                    console.error("Error starting recognition:", e);
-                    setError("Could not start microphone.");
-                    isRecording = false; // Reset state
-                }
-            }
-        } else {
-            recognition.stop();
-            voiceLabelEl.textContent = 'Start Voice';
-            voiceButtonEl.classList.remove('voice-recording');
-            
-            // Trigger translation/summary if text was recorded
-            if (logTextEl.value.trim()) {
-                 translateAndSummarize(logTextEl.value.trim());
-            }
-        }
-    };
-
-    // --- Event Listeners and Initialization ---
-
-    const setupEventListeners = () => {
-        saveButtonEl.addEventListener('click', saveLog);
-        logTextEl.addEventListener('input', checkSaveEnablement);
-        projectSelectEl.addEventListener('change', checkSaveEnablement);
-        
-        // Listen for log text changes to trigger AI analysis/translation on blur (focus loss)
-        logTextEl.addEventListener('blur', () => {
-            const text = logTextEl.value.trim();
-            if (text.length > 0 && !isRecording) {
-                translateAndSummarize(text);
-            }
+            debouncedTranslate(); // Automatic AI summary/translation
         });
+        projectSelectEl.addEventListener('change', checkSaveEnablement);
+        saveButtonEl.addEventListener('click', saveLog);
 
-        // Media Button handlers
+        // Media Buttons
         photoButtonEl.addEventListener('click', () => photoInputEl.click());
-        photoInputEl.addEventListener('change', (e) => handleFileChange(e, 'image'));
         videoButtonEl.addEventListener('click', () => videoInputEl.click());
+
+        photoInputEl.addEventListener('change', (e) => handleFileChange(e, 'image'));
         videoInputEl.addEventListener('change', (e) => handleFileChange(e, 'video'));
         
-        // Voice Button handler
-        voiceButtonEl.addEventListener('click', () => toggleRecording(!isRecording));
+        // Voice Input
+        voiceButtonEl.addEventListener('click', toggleVoiceRecognition);
         
-        // Modal button handlers
+        // Modal Event Listeners
         confirmDeleteBtn.addEventListener('click', executeDelete);
         cancelDeleteBtn.addEventListener('click', () => confirmModalEl.classList.add('hidden'));
+        
+        // Initial icon rendering
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     };
 
-    // Wait for the DOM to fully load before initializing
-    document.addEventListener('DOMContentLoaded', () => {
-        setupVoiceRecognition();
-        setupEventListeners();
-        setupFirebase();
-        // Render Lucide icons for initial load
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    });
+    window.addEventListener('load', init);
+    
+    // Expose global function for inline HTML
+    window.removeMedia = window.removeMedia; // Already defined, just ensuring it's recognized
+    window.deleteLog = deleteLog; // Expose deleteLog for use in the log cards
+
 </script>
 </body>
 </html>
