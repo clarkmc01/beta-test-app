@@ -11,7 +11,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Load Lucide Icons for React (must use type="module") -->
+    <!-- 1. Load Lucide Icons (asynchronously, sets window.lucide) -->
     <script type="module">
       import * as lucide from 'https://unpkg.com/lucide-react@0.292.0/dist/lucide-react.js';
       // Expose the entire Lucide module globally
@@ -20,7 +20,7 @@
       window.ReactDOM = window.ReactDOM || ReactDOM;
     </script>
     
-    <!-- Load Firebase SDKs (must use type="module") -->
+    <!-- 2. Load Firebase SDKs (asynchronously, sets window.firebase) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -40,9 +40,12 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <!-- Initial loading message while waiting for async modules -->
+        <div class="p-8 text-center text-gray-500">Loading application resources...</div>
+    </div>
 
-    <!-- Main React Application using Babel for compilation -->
+    <!-- 3. Main React Application (DEFINED, but not executed yet) -->
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
         const { createRoot } = ReactDOM;
@@ -62,13 +65,13 @@
          * Main application component for the Daily Dictation Log.
          */
         const App = () => {
-          // CRITICAL FIX: Access all external dependencies safely *inside* the component
-          // to ensure they are available after the asynchronous module loading is complete.
+          // Access all external dependencies safely *inside* the component
           const firebase = window.firebase || {};
           const lucide = window.lucide || {};
           
           const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, addDoc, onSnapshot, collection, query, serverTimestamp } = firebase;
-          const { Mic, Save, Loader, XCircle, List, User, Tag } = lucide; // Destructure icons safely
+          // IMPORTANT: Destructuring icons here prevents a Babel compilation error
+          const { Mic, Save, Loader, XCircle, List, User, Tag } = lucide; 
 
           const [db, setDb] = useState(null);
           const [userId, setUserId] = useState(null);
@@ -84,17 +87,16 @@
 
           const recognitionRef = useRef(null);
           
-          // --- Early Dependency Check (Handles case where modules fail to load entirely) ---
+          // --- Early Dependency Check (Handles case where dependencies load but auth is not ready) ---
           if (!initializeApp || !Mic) {
-            return (
-                <div className="min-h-screen p-4 sm:p-8 font-sans">
-                    <h1 className="text-3xl font-bold text-gray-900 mb-4">Voice Log Tester</h1>
-                    <div className="flex justify-center items-center p-8 bg-white rounded-xl shadow-lg mt-4">
-                        {/* Use a simple text loader as a fallback if Loader icon is not available */}
-                        <span className="text-gray-600 font-medium">Loading dependencies... Please wait.</span>
-                    </div>
-                </div>
-            );
+             // This fallback should be extremely rare now that we use startReactApp
+             return (
+                 <div className="min-h-screen p-4 sm:p-8 font-sans">
+                     <div className="flex justify-center items-center p-8 bg-white rounded-xl shadow-lg mt-4">
+                         <span className="text-gray-600 font-medium">Dependencies failed to load. Please check console.</span>
+                     </div>
+                 </div>
+             );
           }
 
 
@@ -413,14 +415,36 @@
           );
         };
 
-        // Render the App once the DOM is ready
-        document.addEventListener('DOMContentLoaded', () => {
+        // Global function to start the React application
+        window.startReactApp = () => {
             const container = document.getElementById('root');
             if (container) {
                 const root = createRoot(container);
                 root.render(<App />);
             }
-        });
+        };
+    </script>
+
+    <!-- 4. Final check script (Standard JS, executes after all preceding scripts are defined) -->
+    <script>
+        function checkAndStart() {
+            // Check for both the Lucide icons and Firebase core function
+            if (window.lucide && window.firebase && window.firebase.initializeApp) {
+                // Dependencies are loaded, clear initial loading message
+                const rootDiv = document.getElementById('root');
+                if (rootDiv) {
+                    rootDiv.innerHTML = '';
+                }
+                // Now, safely execute the React render function
+                window.startReactApp();
+            } else {
+                // Not ready yet, check again in 50ms
+                setTimeout(checkAndStart, 50);
+            }
+        }
+        
+        // Start the polling process
+        checkAndStart();
     </script>
 </body>
 </html>
